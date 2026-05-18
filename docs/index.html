@@ -25,10 +25,7 @@
         background: #0f0f0f;
         color: white;
         font-family:
-          ui-sans-serif,
-          system-ui,
-          sans-serif,
-          "Apple Color Emoji",
+          ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji",
           "Segoe UI Emoji";
         padding: calc(28px + env(safe-area-inset-top))
           calc(20px + env(safe-area-inset-right))
@@ -139,6 +136,22 @@
         min-height: 1.5em;
         overflow-wrap: anywhere;
       }
+
+      .notify-row {
+        margin-top: 14px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+      }
+
+      .notify-status {
+        font-size: 13px;
+        color: #888;
+        flex: 1 1 200px;
+        line-height: 1.4;
+      }
+
       .settings {
         background: #1a1a1a;
         padding: 24px;
@@ -474,6 +487,16 @@
           font-size: 13px;
         }
 
+        .notify-row {
+          flex-direction: column;
+          align-items: stretch;
+        }
+
+        .notify-row button {
+          width: 100%;
+          min-height: 48px;
+        }
+
         .profile {
           flex-direction: column;
           text-align: center;
@@ -526,118 +549,128 @@
     </div>
 
     <div id="appMain" class="app-main hidden">
-    <div class="title">Roblox Presence Monitor</div>
+      <div class="title">Roblox Presence Monitor</div>
 
-    <details class="credentials-drawer">
-      <summary class="credentials-drawer-summary">
-        <span class="credentials-drawer-title">
-          トークン・監視ユーザー名の入力
-        </span>
-        <span class="credentials-drawer-sub">
-          タップして開く（閉じておくとのぞき見対策になります）
-        </span>
-      </summary>
+      <details class="credentials-drawer">
+        <summary class="credentials-drawer-summary">
+          <span class="credentials-drawer-title">
+            トークン・監視ユーザー名の入力
+          </span>
+          <span class="credentials-drawer-sub">
+            タップして開く（閉じておくとのぞき見対策になります）
+          </span>
+        </summary>
 
-      <div class="credentials-drawer-body">
-    <div class="settings">
-      <div class="settings-title">設定</div>
+        <div class="credentials-drawer-body">
+          <div class="settings">
+            <div class="settings-title">設定</div>
 
-      <div class="settings-hint">
-        DevTools → Application → Cookies の
-        <code>.ROBLOSECURITY</code> の値だけを貼る（このブラウザの localStorage に保存）。
-      </div>
+            <div class="settings-hint">
+              DevTools → Application → Cookies の
+              <code>.ROBLOSECURITY</code> の値だけを貼る（このブラウザの
+              localStorage に保存）。
+            </div>
 
-      <div class="settings-row">
-        <input
-          id="tokenInput"
-          class="token-input"
-          type="password"
-          placeholder=".ROBLOSECURITY を貼り付け"
-          autocomplete="current-password"
-          autocorrect="off"
-          autocapitalize="none"
-          spellcheck="false"
-        />
+            <div class="settings-row">
+              <input
+                id="tokenInput"
+                class="token-input"
+                type="password"
+                placeholder=".ROBLOSECURITY を貼り付け"
+                autocomplete="current-password"
+                autocorrect="off"
+                autocapitalize="none"
+                spellcheck="false"
+              />
 
-        <button type="button" onclick="saveToken()">保存</button>
+              <button type="button" onclick="saveToken()">保存</button>
 
-        <button type="button" class="secondary" onclick="clearToken()">
-          クリア
-        </button>
-      </div>
+              <button type="button" class="secondary" onclick="clearToken()">
+                クリア
+              </button>
+            </div>
 
-      <div id="tokenStatus" class="token-status">Token: 未設定</div>
-    </div>
+            <div id="tokenStatus" class="token-status">Token: 未設定</div>
+          </div>
 
-    <div class="search">
-      <div class="search-row">
-        <input
-          id="usernameInput"
-          placeholder="ユーザー名（@不要）例: Player123"
-          autocomplete="username"
-          autocapitalize="none"
-          autocorrect="off"
-          spellcheck="false"
-          enterkeyhint="search"
-        />
+          <div class="search">
+            <div class="search-row">
+              <input
+                id="usernameInput"
+                placeholder="ユーザー名（@不要）例: Player123"
+                autocomplete="username"
+                autocapitalize="none"
+                autocorrect="off"
+                spellcheck="false"
+                enterkeyhint="search"
+              />
 
-        <button type="button" onclick="startMonitor()">Monitor</button>
+              <button type="button" onclick="startMonitor()">Monitor</button>
 
+              <button
+                type="button"
+                class="secondary"
+                onclick="refreshStatusNow()"
+              >
+                再読み込み
+              </button>
+            </div>
+          </div>
+        </div>
+      </details>
+
+      <div id="monitorHint" class="monitor-hint" aria-live="polite"></div>
+
+      <div class="notify-row">
         <button
           type="button"
           class="secondary"
-          onclick="refreshStatusNow()"
+          onclick="requestInGameNotifications()"
         >
-          再読み込み
+          IN GAME のときブラウザ通知（許可）
         </button>
+        <span id="notifyStatus" class="notify-status"></span>
       </div>
-    </div>
 
-      </div>
-    </details>
+      <div class="profile">
+        <img id="avatar" class="avatar" />
 
-    <div id="monitorHint" class="monitor-hint" aria-live="polite"></div>
+        <div>
+          <div id="displayName" class="display-name"></div>
 
-    <div class="profile">
-      <img id="avatar" class="avatar" />
+          <div id="username" class="username"></div>
 
-      <div>
-        <div id="displayName" class="display-name"></div>
+          <div id="status" class="status">—</div>
 
-        <div id="username" class="username"></div>
-
-        <div id="status" class="status">—</div>
-
-        <div id="game" class="game">
-          ユーザー名を入力して Monitor を押すと /status で取得します。
+          <div id="game" class="game">
+            ユーザー名を入力して Monitor を押すと /status で取得します。
+          </div>
         </div>
       </div>
-    </div>
 
-    <div class="stats">
-      <div class="card">
-        <div class="card-title">USER ID</div>
+      <div class="stats">
+        <div class="card">
+          <div class="card-title">USER ID</div>
 
-        <div id="userId" class="card-value">—</div>
+          <div id="userId" class="card-value">—</div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">FRIENDS</div>
+
+          <div id="friends" class="card-value">—</div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">FOLLOWERS</div>
+
+          <div id="followers" class="card-value">—</div>
+        </div>
       </div>
 
-      <div class="card">
-        <div class="card-title">FRIENDS</div>
+      <div class="logs-title">Session Logs</div>
 
-        <div id="friends" class="card-value">—</div>
-      </div>
-
-      <div class="card">
-        <div class="card-title">FOLLOWERS</div>
-
-        <div id="followers" class="card-value">—</div>
-      </div>
-    </div>
-
-    <div class="logs-title">Session Logs</div>
-
-    <div id="logs"></div>
-
+      <div id="logs"></div>
     </div>
 
     <script>
@@ -656,7 +689,7 @@
         "│       █████ █   █ █   █ █   █        │",
         "│       █   █ █   █ █   █  ███         │",
         "│                                      │",
-        "│           WELCOME TO WAHO            │",
+        "│           WELCOME TO WAHOROX         │",
         "└──────────────────────────────────────┘",
       ].join("\n");
 
@@ -670,11 +703,16 @@
         { wait: 600, text: "ENVIRONMENT VARIABLES INJECTED ..." },
         { wait: 600, text: "FINALIZING STARTUP ..." },
         { wait: 600, text: "OPTIMIZING DEPLOYMENT ..." },
-        { wait: 500, text: "STEADY HANDS. CLEAN LOGS. YOUR APP IS ALMOST LIVE ..." },
+        {
+          wait: 500,
+          text: "STEADY HANDS. CLEAN LOGS. YOUR APP IS ALMOST LIVE ...",
+        },
       ];
 
       let pollTimer = null;
       const logs = [];
+
+      let lastNotifySnapshot = { status: "", gameLine: "" };
 
       function setMonitorHint(text) {
         const el = document.getElementById("monitorHint");
@@ -689,6 +727,161 @@
         }
 
         return String(v);
+      }
+
+      function syncNotifyStatusLabel() {
+        const el = document.getElementById("notifyStatus");
+
+        if (!el || !("Notification" in window)) {
+          return;
+        }
+
+        if (Notification.permission === "granted") {
+          el.innerText = "通知: 許可済み（IN GAME に入ったとき / ゲーム切替で通知）";
+        } else if (Notification.permission === "denied") {
+          el.innerText =
+            "通知: ブラウザからブロックされています。設定から許可してください。";
+        } else {
+          el.innerText = "未許可 — ボタンで許可すると通知できます（HTTPS ページのみ）。";
+        }
+      }
+
+      async function requestInGameNotifications() {
+        const el = document.getElementById("notifyStatus");
+
+        if (!("Notification" in window)) {
+          if (el) {
+            el.innerText = "このブラウザは通知 API に対応していません。";
+          }
+
+          return;
+        }
+
+        try {
+
+          const p = await Notification.requestPermission();
+
+          if (el) {
+
+            if (p === "granted") {
+
+              el.innerText =
+                "通知: オン — 監視ユーザーが IN GAME になったときに通知します。";
+
+              try {
+
+                new Notification("roblox-monitor", {
+                  body: "通知のテストです。IN GAME でまたお知らせします。",
+                });
+
+              } catch (_) {}
+
+            } else if (p === "denied") {
+
+              el.innerText =
+                "通知が拒否されました。ブラウザのサイト設定から許可してください。";
+
+            } else {
+
+              el.innerText = "許可ダイアログがキャンセルされました。";
+
+            }
+
+          }
+
+        } catch (err) {
+
+          console.error(err);
+
+          if (el) {
+
+            el.innerText = "通知の許可リクエストに失敗しました。";
+
+          }
+
+        }
+
+        syncNotifyStatusLabel();
+
+      }
+
+      function pickNotifyGameLine(data) {
+
+        if ((data.status || "") !== "IN GAME") {
+
+          return "";
+
+        }
+
+        const g = (data.game || "").trim();
+
+        if (g) {
+
+          return g;
+
+        }
+
+        const u = (data.universeName || "").trim();
+
+        if (u) {
+
+          return u;
+
+        }
+
+        return "ゲームに入室（タイトル未取得）";
+
+      }
+
+      function notifyIfEnteredInGame(data) {
+
+        const status = data.status || "";
+        const gameLine = pickNotifyGameLine(data);
+
+        if (!("Notification" in window)) {
+
+          lastNotifySnapshot = { status: status, gameLine: gameLine };
+
+          return;
+
+        }
+
+        if (Notification.permission === "granted" && status === "IN GAME") {
+
+          const prev = lastNotifySnapshot;
+
+          const entered = prev.status !== "IN GAME";
+
+          const switched =
+            prev.status === "IN GAME" &&
+            gameLine &&
+            prev.gameLine &&
+            gameLine !== prev.gameLine;
+
+          if (entered || switched) {
+
+            try {
+
+              const name =
+                data.displayName ||
+                data.username ||
+                getWatchUsername() ||
+                "ユーザー";
+
+              new Notification(name + " が IN GAME", {
+                body: gameLine,
+                tag: "roblox-monitor-ingame",
+                renotify: switched,
+              });
+
+            } catch (_) {}
+
+          }
+
+        }
+
+        lastNotifySnapshot = { status: status, gameLine: gameLine };
+
       }
 
       function sleep(ms) {
@@ -760,7 +953,9 @@
           appendBootLine(
             "TIMEOUT — API (" + API_BASE + ") が応答しませんでした。",
           );
-          appendBootLine("Render の無料枠はスリープしていることがあります。しばらく待ってリロードしてください。");
+          appendBootLine(
+            "Render の無料枠はスリープしていることがあります。しばらく待ってリロードしてください。",
+          );
           await sleep(2500);
         } else {
           appendBootLine("API ONLINE ...");
@@ -788,8 +983,12 @@
         if (getWatchUsername()) {
           loadStatus();
         } else {
-          setMonitorHint("監視するユーザー名を入れて Monitor を押してください。");
+          setMonitorHint(
+            "監視するユーザー名を入れて Monitor を押してください。",
+          );
         }
+
+        syncNotifyStatusLabel();
       }
 
       async function runBootSequence() {
@@ -870,16 +1069,13 @@
           const data = await res.json();
 
           if (data.state === "valid") {
-            el.innerText =
-              "Token: OK（あなたの userId " + data.userId + "）";
+            el.innerText = "Token: OK（あなたの userId " + data.userId + "）";
             el.className = "token-status ok";
           } else if (data.state === "invalid") {
-            el.innerText =
-              "Token: 無効 — Roblox で貼り直し";
+            el.innerText = "Token: 無効 — Roblox で貼り直し";
             el.className = "token-status warn";
           } else if (data.state === "unknown") {
-            el.innerText =
-              "Token: 保存済み（検証できず送信は試します）";
+            el.innerText = "Token: 保存済み（検証できず送信は試します）";
             el.className = "token-status ok";
           } else if (data.valid) {
             el.innerText = "Token: 保存済み";
@@ -951,9 +1147,7 @@
         document.getElementById("followers").innerText = "—";
 
         setMonitorHint(
-          "「@" +
-            forUsername +
-            "」について Render 上の API に取得中です。",
+          "「@" + forUsername + "」について Render 上の API に取得中です。",
         );
       }
 
@@ -991,7 +1185,9 @@
           if (data.error) {
             document.getElementById("status").innerText = "ERROR";
             document.getElementById("game").innerText = data.error;
-            setMonitorHint("API がエラーを返しました（上の ERROR / 説明を確認）。");
+            setMonitorHint(
+              "API がエラーを返しました（上の ERROR / 説明を確認）。",
+            );
             return;
           }
 
@@ -1015,12 +1211,11 @@
           document.getElementById("game").innerText =
             data.presenceNote || data.presenceError || data.game || "";
 
-          document.getElementById("userId").innerText =
-            fmtStat(data.userId);
-          document.getElementById("friends").innerText =
-            fmtStat(data.friends);
-          document.getElementById("followers").innerText =
-            fmtStat(data.followers);
+          document.getElementById("userId").innerText = fmtStat(data.userId);
+          document.getElementById("friends").innerText = fmtStat(data.friends);
+          document.getElementById("followers").innerText = fmtStat(
+            data.followers,
+          );
 
           setMonitorHint(
             "取得できました（サーバー時刻 " +
@@ -1052,6 +1247,8 @@
               el.innerText = log;
               logsDiv.appendChild(el);
             });
+
+          notifyIfEnteredInGame(data);
         } catch (err) {
           console.error(err);
 
@@ -1060,9 +1257,10 @@
           }
 
           document.getElementById("status").innerText = "NETWORK";
-          document.getElementById("game").innerText =
-            "API に接続できません。";
-          setMonitorHint("fetch に失敗しました。Network タブか API の稼働を確認してください。");
+          document.getElementById("game").innerText = "API に接続できません。";
+          setMonitorHint(
+            "fetch に失敗しました。Network タブか API の稼働を確認してください。",
+          );
         }
       }
 
@@ -1072,7 +1270,9 @@
         );
 
         if (!uname) {
-          alert("@の後ろのユーザー名を入力してください（@は付けなくても大丈夫です）。");
+          alert(
+            "@の後ろのユーザー名を入力してください（@は付けなくても大丈夫です）。",
+          );
           return;
         }
 
@@ -1082,15 +1282,15 @@
         logs.length = 0;
         document.getElementById("logs").innerHTML = "";
 
+        lastNotifySnapshot = { status: "", gameLine: "" };
+
         showPendingProfile(uname);
         loadStatus();
       }
 
       function refreshStatusNow() {
         if (!getWatchUsername()) {
-          alert(
-            "ユーザー名を入力するか、Monitor で一度保存してください。",
-          );
+          alert("ユーザー名を入力するか、Monitor で一度保存してください。");
           return;
         }
 
