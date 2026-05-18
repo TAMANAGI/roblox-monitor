@@ -350,7 +350,7 @@
       const ROBLOX_ASCII = [
         "┌──────────────────────────────────────┐",
         "│                                      │",
-        "│              わほー                  │",
+        "│              WAHO~                   │",
         "│         welcome to roblox            │",
         "│                                      │",
         "└──────────────────────────────────────┘",
@@ -608,12 +608,32 @@
         return headers;
       }
 
+      /** 古い fetch が遅れて DOM を上書きしないよう、直近の読み込みだけ反映する */
+      let statusFetchGeneration = 0;
+
+      function showPendingProfile(forUsername) {
+        const avatarEl = document.getElementById("avatar");
+        avatarEl.removeAttribute("src");
+
+        document.getElementById("displayName").innerText = forUsername;
+        document.getElementById("username").innerText = "@" + forUsername;
+
+        document.getElementById("status").innerText = "取得中…";
+        document.getElementById("game").innerText = "";
+
+        document.getElementById("userId").innerText = "—";
+        document.getElementById("friends").innerText = "—";
+        document.getElementById("followers").innerText = "—";
+      }
+
       async function loadStatus() {
         const uname = getWatchUsername();
 
         if (!uname) {
           return;
         }
+
+        const gen = ++statusFetchGeneration;
 
         try {
           const url =
@@ -628,6 +648,10 @@
           });
 
           const data = await res.json();
+
+          if (gen !== statusFetchGeneration) {
+            return;
+          }
 
           if (data.error) {
             document.getElementById("status").innerText = "ERROR";
@@ -686,6 +710,10 @@
         } catch (err) {
           console.error(err);
 
+          if (gen !== statusFetchGeneration) {
+            return;
+          }
+
           document.getElementById("status").innerText = "NETWORK";
           document.getElementById("game").innerText =
             "API に接続できません。";
@@ -706,6 +734,9 @@
         document.getElementById("usernameInput").value = uname;
 
         logs.length = 0;
+        document.getElementById("logs").innerHTML = "";
+
+        showPendingProfile(uname);
         loadStatus();
       }
 
