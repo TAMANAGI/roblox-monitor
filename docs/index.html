@@ -261,10 +261,21 @@
 
       <div class="settings-hint" style="margin-top: 1.25rem">
         <strong>API の URL</strong> — 既定は Render。
-        Presence が取れない場合は、このリポジトリの Flask を
-        <code>python -m flask</code> などで<strong>自分の PC</strong>で動かし、ここに
-        <code>http://127.0.0.1:5000</code> のように入力してください。
-        （ホーム回線経由だと Presence API が応答しやすいことがあります。末尾のスラッシュは付けません。）
+        Presence が取れないときは、この PC で Flask を起動して使うことがあります。
+        <strong>GitHub Pages（https）</strong> のままでは
+        <code>http://127.0.0.1</code> へ繋げないため、どちらかを選びます。<br /><br />
+        <strong>A. UI もローカルで開く（簡単）</strong><br />
+        別ターミナル① <code>cd docs &amp;&amp; python3 -m http.server 8080</code> → ブラウザで
+        <code>http://127.0.0.1:8080</code> を開く。<br />
+        別ターミナル② リポジトリ直下で依存関係インストールのあと<br />
+        <code>pip install -r requirements.txt</code><br />
+        <code>flask --app bot.main run --host 127.0.0.1 --port 5000</code><br />
+        設定の API URL に <code>http://127.0.0.1:5000</code>（末尾スラッシュなし）。
+        Cookie は Settings からこれまでどおり。<br /><br />
+        <strong>B. GitHub Pages の見たまま使う</strong><br />
+        ngrok / Cloudflare Tunnel などでローカル 5000 を<strong> https の公開 URL </strong>
+        に公開し、その URL を API に保存する。<br /><br />
+        <strong>C. 開発者向け</strong> Chromium で混合コンテンツを無効にする方法はセキュリティ上おすすめしません。
       </div>
 
       <div class="settings-row">
