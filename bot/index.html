@@ -1,0 +1,47 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Roblox Monitor</title>
+
+    <style>
+      body {
+        background: #111;
+        color: white;
+        font-family: sans-serif;
+        text-align: center;
+        margin-top: 100px;
+      }
+
+      .status {
+        font-size: 50px;
+        margin-bottom: 20px;
+      }
+
+      .game {
+        font-size: 30px;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="status" id="status">Loading...</div>
+
+    <div class="game" id="game"></div>
+
+    <script>
+      async function loadStatus() {
+        const res = await fetch("status.json?t=" + Date.now());
+
+        const data = await res.json();
+
+        document.getElementById("status").innerText = data.status;
+        document.getElementById("game").innerText = data.game;
+      }
+
+      loadStatus();
+
+      setInterval(loadStatus, 10000);
+    </script>
+  </body>
+</html>
