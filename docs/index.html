@@ -1,23 +1,54 @@
 <!doctype html>
-<html>
+<html lang="ja">
   <head>
     <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#0f0f0f" />
+    <meta name="color-scheme" content="dark" />
     <title>Roblox Presence Monitor</title>
 
     <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
+      html {
+        -webkit-text-size-adjust: 100%;
+      }
+
       body {
         background: #0f0f0f;
         color: white;
-        font-family: sans-serif;
-        padding: 40px;
+        font-family:
+          ui-sans-serif,
+          system-ui,
+          sans-serif,
+          "Apple Color Emoji",
+          "Segoe UI Emoji";
+        padding: calc(28px + env(safe-area-inset-top))
+          calc(20px + env(safe-area-inset-right))
+          calc(28px + env(safe-area-inset-bottom))
+          calc(20px + env(safe-area-inset-left));
         max-width: 900px;
-        margin: auto;
+        margin: 0 auto;
+        overflow-x: hidden;
+      }
+
+      .app-main {
+        width: 100%;
+        min-width: 0;
       }
 
       .title {
-        font-size: 48px;
-        margin-bottom: 40px;
+        font-size: clamp(1.5rem, 5.5vw, 3rem);
+        margin-bottom: 1.25rem;
         font-weight: bold;
+        line-height: 1.15;
       }
 
       .search,
@@ -34,12 +65,17 @@
 
       .search-row input {
         flex: 1 1 260px;
-        min-width: min(100%, 260px);
+        min-width: min(100%, 200px);
         width: auto;
       }
 
       .search-row button {
         margin-left: 0;
+      }
+
+      code {
+        font-size: max(11px, 0.92em);
+        word-break: break-all;
       }
 
       .monitor-hint {
@@ -48,8 +84,8 @@
         color: #a3a3a3;
         line-height: 1.5;
         min-height: 1.5em;
+        overflow-wrap: anywhere;
       }
-
       .settings {
         background: #1a1a1a;
         padding: 24px;
@@ -81,8 +117,8 @@
       }
 
       .token-input {
-        flex: 1;
-        min-width: 280px;
+        flex: 1 1 auto;
+        min-width: 0;
       }
 
       .token-status {
@@ -100,11 +136,13 @@
       }
 
       input {
-        padding: 14px;
-        width: 300px;
+        padding: 13px 14px;
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
         border: none;
         border-radius: 12px;
-        font-size: 18px;
+        font-size: 16px;
         background: #1f1f1f;
         color: white;
       }
@@ -113,11 +151,13 @@
         padding: 14px 20px;
         border: none;
         border-radius: 12px;
-        font-size: 18px;
+        font-size: 16px;
         background: #2563eb;
         color: white;
         cursor: pointer;
         margin-left: 10px;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
       }
 
       button.secondary {
@@ -126,78 +166,101 @@
 
       .profile {
         display: flex;
-        gap: 30px;
+        gap: clamp(16px, 4vw, 30px);
         align-items: center;
-        margin-bottom: 40px;
+        margin-bottom: 32px;
+        min-width: 0;
+      }
+
+      .profile > div:last-child {
+        flex: 1;
+        min-width: 0;
       }
 
       .avatar {
-        width: 140px;
-        height: 140px;
-        border-radius: 20px;
+        width: 112px;
+        height: 112px;
+        border-radius: 18px;
         object-fit: cover;
+        flex-shrink: 0;
         background: #1f1f1f;
       }
 
       .display-name {
-        font-size: 40px;
+        font-size: clamp(1.35rem, 5vw, 2.45rem);
         font-weight: bold;
+        line-height: 1.15;
+        overflow-wrap: anywhere;
+        word-break: break-word;
       }
 
       .username {
         color: #888;
-        font-size: 22px;
+        font-size: clamp(0.95rem, 3.5vw, 1.25rem);
         margin-top: 5px;
+        overflow-wrap: anywhere;
       }
 
       .status {
-        font-size: 60px;
+        font-size: clamp(2rem, 11vw, 3.65rem);
         font-weight: bold;
-        margin-top: 20px;
+        margin-top: 16px;
+        line-height: 1.05;
+        overflow-wrap: anywhere;
       }
 
       .game {
-        font-size: 28px;
+        font-size: clamp(0.94rem, 3.8vw, 1.72rem);
         margin-top: 10px;
         color: #ccc;
+        line-height: 1.45;
+        overflow-wrap: anywhere;
+        word-break: break-word;
       }
 
       .stats {
         display: flex;
-        gap: 20px;
-        margin-top: 20px;
+        gap: 14px;
+        margin-top: 16px;
         flex-wrap: wrap;
       }
 
       .card {
         background: #1a1a1a;
-        padding: 20px;
-        border-radius: 16px;
-        min-width: 160px;
+        padding: 18px;
+        border-radius: 14px;
+        flex: 1 1 140px;
+        min-width: 0;
       }
 
       .card-title {
         color: #888;
         margin-bottom: 10px;
+        font-size: 13px;
+        letter-spacing: 0.04em;
       }
 
       .card-value {
-        font-size: 28px;
+        font-size: clamp(1.25rem, 5vw, 1.75rem);
         font-weight: bold;
+        overflow-wrap: anywhere;
       }
 
       .logs-title {
-        margin-top: 50px;
-        margin-bottom: 20px;
-        font-size: 32px;
+        margin-top: 40px;
+        margin-bottom: 16px;
+        font-size: clamp(1.25rem, 4vw, 2rem);
       }
 
       .log {
         background: #1a1a1a;
-        padding: 14px;
+        padding: 12px;
         border-radius: 12px;
         margin-bottom: 10px;
-        font-family: monospace;
+        font-family: ui-monospace, Menlo, monospace;
+        font-size: 13px;
+        overflow-wrap: anywhere;
+        line-height: 1.4;
       }
 
       .hidden {
@@ -209,10 +272,14 @@
         inset: 0;
         z-index: 1000;
         background: #0d0d0d;
-        padding: 48px;
+        padding: calc(40px + env(safe-area-inset-top))
+          calc(24px + env(safe-area-inset-right))
+          calc(32px + env(safe-area-inset-bottom))
+          calc(24px + env(safe-area-inset-left));
         overflow: auto;
         font-family: ui-monospace, "SF Mono", Menlo, monospace;
         transition: opacity 0.45s ease;
+        -webkit-overflow-scrolling: touch;
       }
 
       .boot-screen.fade-out {
@@ -243,8 +310,118 @@
         margin: 12px 0 20px;
         color: #f0f0f0;
         white-space: pre;
-        font-size: 11px;
+        font-size: clamp(7px, 1.8vw, 11px);
         line-height: 1.15;
+        max-width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      @media (min-width: 720px) {
+        .avatar {
+          width: 140px;
+          height: 140px;
+          border-radius: 20px;
+        }
+
+        .stats {
+          gap: 20px;
+        }
+
+        .card {
+          padding: 20px;
+          border-radius: 16px;
+        }
+      }
+
+      @media (max-width: 600px) {
+        .search,
+        .settings {
+          margin-bottom: 28px;
+        }
+
+        .settings {
+          padding: 17px 14px;
+          border-radius: 14px;
+        }
+
+        .settings-title {
+          font-size: 1.125rem;
+        }
+
+        .settings-hint {
+          font-size: 13px;
+        }
+
+        .settings-row .token-input {
+          flex: 1 1 100%;
+          width: 100%;
+        }
+
+        .settings-row button {
+          flex: 1 1 calc(50% - 5px);
+          min-height: 48px;
+          margin-left: 0;
+          font-size: 16px;
+        }
+
+        .search-row input {
+          flex: 1 1 100%;
+          width: 100%;
+          min-width: 0;
+        }
+
+        .search-row button {
+          flex: 1 1 calc(50% - 5px);
+          min-height: 48px;
+          margin-left: 0;
+          font-size: 16px;
+        }
+
+        .monitor-hint {
+          font-size: 13px;
+        }
+
+        .profile {
+          flex-direction: column;
+          text-align: center;
+          align-items: center;
+          margin-bottom: 28px;
+        }
+
+        .profile > div:last-child {
+          width: 100%;
+          text-align: center;
+        }
+
+        .stats {
+          flex-direction: column;
+        }
+
+        .card {
+          flex: 1 1 auto;
+          width: 100%;
+        }
+
+        .log {
+          font-size: 11px;
+          padding: 11px;
+        }
+
+        .boot-screen {
+          padding: calc(18px + env(safe-area-inset-top))
+            calc(12px + env(safe-area-inset-right))
+            calc(22px + env(safe-area-inset-bottom))
+            calc(12px + env(safe-area-inset-left));
+        }
+
+        .boot-log {
+          font-size: 12px;
+        }
+
+        .boot-ascii {
+          font-size: clamp(6px, 1.9vw, 9px);
+        }
       }
     </style>
   </head>

@@ -5,6 +5,7 @@ import os
 import requests
 import urllib3
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 urllib3.disable_warnings()
 
@@ -21,8 +22,10 @@ CORS(
 
 BROOKHAVEN_PLACE_ID = 4924922222
 
-ROBLOSECURITY = os.environ.get("ROBLOSECURITY", "").strip()
+# 無限待ちを避け、/status の体感を安定させる（connect, read）
+ROBLOX_TIMEOUT = (5, 18)
 
+ROBLOSECURITY = os.environ.get("ROBLOSECURITY", "").strip()
 ROBLOX_HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -80,9 +83,8 @@ def check_roblosecurity(roblosecurity):
         r = session.get(
             "https://users.roblox.com/v1/users/authenticated",
             verify=False,
-            timeout=15,
+            timeout=ROBLOX_TIMEOUT,
         )
-
         if r.status_code == 200:
             return "valid", r.json().get("id"), None
 
@@ -119,7 +121,7 @@ def get_csrf_token(session):
         "https://presence.roblox.com/v1/presence/users",
         json={"userIds": [1]},
         verify=False,
-        timeout=15,
+        timeout=ROBLOX_TIMEOUT,
     )
 
     return r.headers.get("x-csrf-token", "")
@@ -151,7 +153,8 @@ def get_user_id(username):
         r = requests.post(
             url,
             json=payload,
-            verify=False
+            verify=False,
+            timeout=ROBLOX_TIMEOUT,
         )
 
         data = r.json()
@@ -227,7 +230,7 @@ def get_presence(user_id, roblosecurity="", retries=5):
                         json=payload,
                         headers=headers,
                         verify=False,
-                        timeout=25,
+                        timeout=ROBLOX_TIMEOUT,
                     )
 
                     if (
@@ -395,8 +398,7 @@ def get_universe_name(universe_id):
         )
 
         s = roblox_session("")
-        r = s.get(url, verify=False, timeout=15)
-
+        r = s.get(url, verify=False, timeout=ROBLOX_TIMEOUT)
         payload = r.json()
 
         rows = payload.get(
@@ -430,7 +432,8 @@ def get_user_info(user_id):
 
         r = requests.get(
             url,
-            verify=False
+            verify=False,
+            timeout=ROBLOX_TIMEOUT,
         )
 
         return r.json()
@@ -457,7 +460,8 @@ def get_avatar(user_id):
 
         r = requests.get(
             url,
-            verify=False
+            verify=False,
+            timeout=ROBLOX_TIMEOUT,
         )
 
         data = r.json()
@@ -489,7 +493,8 @@ def get_friends_count(user_id):
 
         r = requests.get(
             url,
-            verify=False
+            verify=False,
+            timeout=ROBLOX_TIMEOUT,
         )
 
         return r.json().get(
@@ -513,7 +518,8 @@ def get_followers_count(user_id):
 
         r = requests.get(
             url,
-            verify=False
+            verify=False,
+            timeout=ROBLOX_TIMEOUT,
         )
 
         return r.json().get(
@@ -634,17 +640,39 @@ def status():
 
         roblosecurity = get_request_roblosecurity()
 
-        cookie_val = roblosecurity
+        cookie_val_pre = roblosecurity
         auth_state, _, auth_http = check_roblosecurity(roblosecurity)
         presence_note = ""
         unavailable = {}
+
+        cookie_val = cookie_val_pre
 
         if auth_state == "invalid":
             cookie_val = ""
 
         presence = None
+        ck_rsp = None
 
-        public_rsp = get_presence(user_id, "")
+        if cookie_val:
+
+            with ThreadPoolExecutor(max_workers=2) as pool:
+
+                fut_pub = pool.submit(
+                    get_presence,
+                    user_id,
+                    "",
+                )
+                fut_ck = pool.submit(
+                    get_presence,
+                    user_id,
+                    cookie_val,
+                )
+                public_rsp = fut_pub.result()
+                ck_rsp = fut_ck.result()
+
+        else:
+
+            public_rsp = get_presence(user_id, "")
 
         if isinstance(public_rsp, dict) and public_rsp.get("status_code"):
             unavailable["publicHttp"] = public_rsp["status_code"]
@@ -653,7 +681,6 @@ def status():
             presence = public_rsp
 
         if cookie_val:
-            ck_rsp = get_presence(user_id, cookie_val)
 
             if isinstance(
                 ck_rsp,
@@ -790,13 +817,17 @@ def status():
                 + (" | " + presence_note if presence_note else "")
             )
 
-        info = get_user_info(user_id)
+        with ThreadPoolExecutor(max_workers=4) as pool:
 
-        avatar = get_avatar(user_id)
+            info_fut = pool.submit(get_user_info, user_id)
+            avatar_fut = pool.submit(get_avatar, user_id)
+            friends_fut = pool.submit(get_friends_count, user_id)
+            followers_fut = pool.submit(get_followers_count, user_id)
 
-        friends = get_friends_count(user_id)
-
-        followers = get_followers_count(user_id)
+            info = info_fut.result()
+            avatar = avatar_fut.result()
+            friends = friends_fut.result()
+            followers = followers_fut.result()
 
         name_fallback = ""
 
