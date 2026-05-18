@@ -1,8 +1,8 @@
 import requests
+import urllib3
 import json
 import time
 import subprocess
-import urllib3
 
 urllib3.disable_warnings()
 
@@ -35,14 +35,18 @@ def get_user_id(username):
         "excludeBannedUsers": False
     }
 
-    # r = requests.post(url, json=payload)
     r = requests.post(
-    url,
-    json=payload,
-    verify=False
-)
+        url,
+        json=payload,
+        verify=False
+    )
 
     data = r.json()
+
+    print(data)
+
+    if len(data["data"]) == 0:
+        raise Exception("ユーザーが見つからない！")
 
     return data["data"][0]["id"]
 
@@ -55,15 +59,14 @@ def get_presence(user_id):
     url = "https://presence.roblox.com/v1/presence/users"
 
     payload = {
-        "userIds":[user_id]
+        "userIds": [user_id]
     }
 
-    # r = requests.post(url, json=payload)
     r = requests.post(
-    url,
-    json=payload,
-    verify=False
-)
+        url,
+        json=payload,
+        verify=False
+    )
 
     return r.json()
 
@@ -103,6 +106,8 @@ while True:
     try:
 
         data = get_presence(USER_ID)
+
+        print(data)
 
         user = data["userPresences"][0]
 
@@ -147,16 +152,44 @@ while True:
 
         if status != last_status or game != last_game:
 
-            output = {
+            # 過去ログ取得
+            logs = []
+
+            try:
+
+                with open("../docs/status.json", "r") as f:
+
+                    old_data = json.load(f)
+
+                    logs = old_data.get("logs", [])
+
+            except:
+
+                pass
+
+            new_log = {
                 "status": status,
                 "game": game,
                 "username": USERNAME,
                 "updated": time.strftime("%Y-%m-%d %H:%M:%S")
             }
 
+            logs.append(new_log)
+
+            # 最新50件のみ保持
+            logs = logs[-50:]
+
+            output = {
+                "status": status,
+                "game": game,
+                "username": USERNAME,
+                "updated": time.strftime("%Y-%m-%d %H:%M:%S"),
+                "logs": logs
+            }
+
             with open("../docs/status.json", "w") as f:
 
-                json.dump(output, f)
+                json.dump(output, f, indent=2)
 
             print(output)
 

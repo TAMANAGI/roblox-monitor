@@ -1,47 +1,63 @@
-<!doctype html>
-<html>
-  <head>
-    <meta charset="UTF-8" />
-    <title>Roblox Monitor</title>
+<!DOCTYPE html>
+    <span id="username"></span>
+  </div>
 
-    <style>
-      body {
-        background: #111;
-        color: white;
-        font-family: sans-serif;
-        text-align: center;
-        margin-top: 100px;
-      }
+  <div class="status" id="status">
+    Loading...
+  </div>
 
-      .status {
-        font-size: 50px;
-        margin-bottom: 20px;
-      }
+  <div class="game" id="game"></div>
 
-      .game {
-        font-size: 30px;
-      }
-    </style>
-  </head>
+  <div class="updated" id="updated"></div>
 
-  <body>
-    <div class="status" id="status">Loading...</div>
+</div>
 
-    <div class="game" id="game"></div>
+<div class="logs">
+  <h2>Logs</h2>
 
-    <script>
-      async function loadStatus() {
-        const res = await fetch("status.json?t=" + Date.now());
+  <div id="logs"></div>
+</div>
 
-        const data = await res.json();
+<script>
 
-        document.getElementById("status").innerText = data.status;
-        document.getElementById("game").innerText = data.game;
-      }
+async function loadStatus(){
 
-      loadStatus();
+  const res = await fetch("status.json?t=" + Date.now());
 
-      setInterval(loadStatus, 10000);
-    </script>
-  </body>
+  const data = await res.json();
+
+  document.getElementById("username").innerText = data.username;
+  document.getElementById("status").innerText = data.status;
+  document.getElementById("game").innerText = data.game;
+  document.getElementById("updated").innerText = "Updated: " + data.updated;
+
+  const logsDiv = document.getElementById("logs");
+
+  logsDiv.innerHTML = "";
+
+  if(data.logs){
+
+    data.logs.reverse().forEach(log => {
+
+      const el = document.createElement("div");
+
+      el.className = "log-item";
+
+      el.innerText = JSON.stringify(log, null, 2);
+
+      logsDiv.appendChild(el);
+
+    });
+
+  }
+
+}
+
+loadStatus();
+
+setInterval(loadStatus, 10000);
+
+</script>
+
+</body>
 </html>
