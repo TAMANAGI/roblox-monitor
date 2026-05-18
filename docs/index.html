@@ -235,12 +235,11 @@
     <div class="title">Roblox Presence Monitor</div>
 
     <div class="settings">
-      <div class="settings-title">Settings</div>
+      <div class="settings-title">設定</div>
 
       <div class="settings-hint">
-        Paste your <code>.ROBLOSECURITY</code> cookie from Roblox (DevTools →
-        Application → Cookies). Saved only in this browser (localStorage).
-        Never share it with anyone.
+        DevTools → Application → Cookies の
+        <code>.ROBLOSECURITY</code> の値だけを貼る（このブラウザの localStorage に保存）。
       </div>
 
       <div class="settings-row">
@@ -248,60 +247,49 @@
           id="tokenInput"
           class="token-input"
           type="password"
-          placeholder=".ROBLOSECURITY value"
+          placeholder=".ROBLOSECURITY"
           autocomplete="off"
         />
 
-        <button type="button" onclick="saveToken()">Save token</button>
+        <button type="button" onclick="saveToken()">保存</button>
 
         <button type="button" class="secondary" onclick="clearToken()">
-          Clear
+          クリア
         </button>
       </div>
 
-      <div class="settings-hint" style="margin-top: 1.25rem">
-        <strong>API の URL</strong> — 既定は Render。
-        Presence が取れないときは、この PC で Flask を起動して使うことがあります。
-        <strong>GitHub Pages（https）</strong> のままでは
-        <code>http://127.0.0.1</code> へ繋げないため、どちらかを選びます。<br /><br />
-        <strong>A. UI もローカルで開く（簡単）</strong><br />
-        別ターミナル① <code>cd docs &amp;&amp; python3 -m http.server 8080</code> → ブラウザで
-        <code>http://127.0.0.1:8080</code> を開く。<br />
-        別ターミナル② リポジトリ直下で依存関係インストールのあと<br />
-        <code>pip install -r requirements.txt</code><br />
-        <code>flask --app bot.main run --host 127.0.0.1 --port 5000</code><br />
-        設定の API URL に <code>http://127.0.0.1:5000</code>（末尾スラッシュなし）。
-        Cookie は Settings からこれまでどおり。<br /><br />
-        <strong>B. GitHub Pages の見たまま使う</strong><br />
-        ngrok / Cloudflare Tunnel などでローカル 5000 を<strong> https の公開 URL </strong>
-        に公開し、その URL を API に保存する。<br /><br />
-        <strong>C. 開発者向け</strong> Chromium で混合コンテンツを無効にする方法はセキュリティ上おすすめしません。<br /><br />
-        <strong>D. Chrome 拡張（サーバーなし・ブラウザだけ）</strong><br />
-        GitHub Pages は Roblox が <strong>CORS</strong> でブロックするため、この Web ページだけでは Roblox に直接 fetch できません。<br />
-        リポジトリの <code>browser-extension/</code> を「パッケージ化されていない拡張機能」として読み込むと、<strong>ツールバーのポップアップだけ</strong>で Presence を確認できます（<code>browser-extension/install.txt</code>）。
+      <div id="tokenStatus" class="token-status">Token: 未設定</div>
+
+      <div class="settings-hint" style="margin-top: 1rem">
+        監視対象はプロフィール URL の<strong>数字の User ID</strong>で指定することを推奨します。
       </div>
 
       <div class="settings-row">
         <input
-          id="apiUrlInput"
+          id="targetUserIdInput"
           class="token-input"
           type="text"
+          inputmode="numeric"
+          pattern="[0-9]*"
+          placeholder="例: 10743903486"
           autocomplete="off"
-          placeholder="https://roblox-monitor-xxxx.onrender.com"
         />
 
-        <button type="button" onclick="saveApiUrl()">Save API URL</button>
+        <button type="button" onclick="saveTargetUserId()">User ID を保存</button>
 
-        <button type="button" class="secondary" onclick="clearApiUrl()">
-          Reset to Render
+        <button type="button" class="secondary" onclick="clearTargetUserId()">
+          クリア
         </button>
       </div>
 
-      <div id="apiUrlStatus" class="token-status">API: …</div>
+      <div id="targetIdStatus" class="token-status">User ID: 未設定</div>
     </div>
 
     <div class="search">
-      <input id="usernameInput" placeholder="@username（例: nagi_LoveIsToSuffer）" />
+      <input
+        id="usernameInput"
+        placeholder="ユーザー名は User ID がないときのみ（例: nagi_LoveIsToSuffer）"
+      />
 
       <button onclick="startMonitor()">Monitor</button>
     </div>
@@ -347,98 +335,10 @@
     </div>
 
     <script>
-      const DEFAULT_API_BASE = "https://roblox-monitor-owse.onrender.com";
-      const LOCAL_UI_DEFAULT_API = "http://127.0.0.1:5000";
+      const API_BASE = "https://roblox-monitor-owse.onrender.com";
       const TOKEN_KEY = "robloxRoblosecurity";
-      const API_URL_KEY = "robloxApiBaseUrl";
+      const TARGET_USER_ID_KEY = "robloxTargetUserId";
       const MIN_BOOT_MS = 6000;
-
-      function isLocalUiHost() {
-        const h = window.location.hostname;
-        return (
-          h === "127.0.0.1" ||
-          h === "localhost" ||
-          h === "[::1]"
-        );
-      }
-
-      function getApiBase() {
-        const raw = (localStorage.getItem(API_URL_KEY) || "").trim();
-        const base = raw.replace(/\/$/, "");
-
-        if (base) {
-          return base;
-        }
-
-        if (isLocalUiHost()) {
-          return LOCAL_UI_DEFAULT_API;
-        }
-
-        return DEFAULT_API_BASE;
-      }
-
-      function updateApiUrlStatus() {
-        const st = document.getElementById("apiUrlStatus");
-        const inp = document.getElementById("apiUrlInput");
-        if (!st || !inp) {
-          return;
-        }
-        const cur = getApiBase();
-        inp.placeholder = isLocalUiHost()
-          ? LOCAL_UI_DEFAULT_API
-          : DEFAULT_API_BASE;
-        const saved = (localStorage.getItem(API_URL_KEY) || "").trim();
-
-        if (!saved) {
-          if (isLocalUiHost()) {
-            st.innerText =
-              "API: 自動（"
-              + LOCAL_UI_DEFAULT_API
-              + "）— Flask をその URL で起動してください";
-          } else {
-            st.innerText = "API: デフォルト（Render）";
-          }
-        } else {
-          st.innerText = "API: " + cur;
-        }
-      }
-
-      function saveApiUrl() {
-        const raw = document.getElementById("apiUrlInput").value.trim();
-
-        if (!raw) {
-          alert("API のベース URL を入力してください（例: http://127.0.0.1:5000）");
-          return;
-        }
-        let u = raw.replace(/\/$/, "");
-        if (!u.startsWith("http://") && !u.startsWith("https://")) {
-          u = "http://" + u;
-        }
-        try {
-          new URL(u);
-        } catch {
-          alert("有効な URL 形式で入力してください（例: http://127.0.0.1:5000）");
-          return;
-        }
-        localStorage.setItem(API_URL_KEY, u);
-        document.getElementById("apiUrlInput").value = "";
-        updateApiUrlStatus();
-        if (pollTimer) {
-          clearInterval(pollTimer);
-        }
-        pollTimer = setInterval(loadStatus, 5000);
-        loadStatus();
-      }
-
-      function clearApiUrl() {
-        localStorage.removeItem(API_URL_KEY);
-        updateApiUrlStatus();
-        if (pollTimer) {
-          clearInterval(pollTimer);
-        }
-        pollTimer = setInterval(loadStatus, 5000);
-        loadStatus();
-      }
 
       const ROBLOX_ASCII = [
         "┌──────────────────────────────────────┐",
@@ -465,7 +365,6 @@
         { wait: 500, text: "STEADY HANDS. CLEAN LOGS. YOUR APP IS ALMOST LIVE ..." },
       ];
 
-      let currentUsername = "";
       let pollTimer = null;
       const logs = [];
 
@@ -499,10 +398,9 @@
       }
 
       async function pingHealth() {
-        const res = await fetch(
-          getApiBase() + "/health?t=" + Date.now(),
-          { headers: apiHeaders() },
-        );
+        const res = await fetch(API_BASE + "/health?t=" + Date.now(), {
+          headers: apiHeaders(),
+        });
         return res.ok;
       }
 
@@ -524,51 +422,30 @@
       }
 
       async function playBootAnimation() {
-
         for (const step of BOOT_SEQUENCE) {
-
           await sleep(step.wait);
-
           if (step.ascii) {
             appendBootAscii();
           } else {
             appendBootLine(step.text);
           }
-
         }
 
         const ok = await waitForHealthDeadline(75000);
 
         if (!ok) {
-
           appendBootLine(
-            "TIMEOUT — API の /health に繋がりません。",
-
+            "TIMEOUT — API (" + API_BASE + ") が応答しませんでした。",
           );
-
-          appendBootLine("期待する URL: " + getApiBase());
-
-          appendBootLine(
-            "例: flask --app bot.main run --host 127.0.0.1 --port 5000",
-
-          );
-
-          appendBootLine("起動後にこのページをリロードしてください。");
-
+          appendBootLine("Render の無料枠はスリープしていることがあります。しばらく待ってリロードしてください。");
           await sleep(2500);
-
         } else {
-
           appendBootLine("API ONLINE ...");
-
           await sleep(500);
-
         }
-
       }
 
       async function showMainApp() {
-
         const bootScreen = document.getElementById("bootScreen");
         const appMain = document.getElementById("appMain");
 
@@ -580,15 +457,11 @@
         }, 500);
 
         await updateTokenStatus();
-        updateApiUrlStatus();
-        if (document.getElementById("apiUrlInput")) {
-          document.getElementById("apiUrlInput").value = "";
-        }
+        updateTargetIdStatus();
         pollTimer = setInterval(loadStatus, 5000);
       }
 
       async function runBootSequence() {
-
         const started = Date.now();
 
         await playBootAnimation();
@@ -626,50 +499,86 @@
         return normalizeToken(localStorage.getItem(TOKEN_KEY) || "");
       }
 
+      function getTargetUserId() {
+        return (localStorage.getItem(TARGET_USER_ID_KEY) || "").trim();
+      }
+
+      function updateTargetIdStatus() {
+        const st = document.getElementById("targetIdStatus");
+        if (!st) {
+          return;
+        }
+        const id = getTargetUserId();
+        if (!id) {
+          st.innerText = "User ID: 未設定";
+          return;
+        }
+        st.innerText = "User ID: " + id + " （保存済み）";
+      }
+
+      function saveTargetUserId() {
+        const raw = document.getElementById("targetUserIdInput").value.trim();
+        if (!raw || !/^\d+$/.test(raw)) {
+          alert("数字の User ID だけ入力してください（プロフィールURLの数字）。");
+          return;
+        }
+        localStorage.setItem(TARGET_USER_ID_KEY, raw);
+        document.getElementById("targetUserIdInput").value = "";
+        updateTargetIdStatus();
+        if (pollTimer) {
+          loadStatus();
+        }
+      }
+
+      function clearTargetUserId() {
+        localStorage.removeItem(TARGET_USER_ID_KEY);
+        document.getElementById("targetUserIdInput").value = "";
+        updateTargetIdStatus();
+        if (pollTimer) {
+          loadStatus();
+        }
+      }
+
       async function updateTokenStatus() {
         const el = document.getElementById("tokenStatus");
         const token = getToken();
 
         if (!token) {
-          el.innerText = "Token: not set";
+          el.innerText = "Token: 未設定";
           el.className = "token-status";
           return;
         }
 
-        el.innerText = "Token: checking...";
+        el.innerText = "Token: 確認中…";
         el.className = "token-status";
 
         try {
-          const res = await fetch(
-            getApiBase() + "/auth/verify",
-            { headers: { "X-Roblox-Security": token } },
-          );
+          const res = await fetch(API_BASE + "/auth/verify", {
+            headers: { "X-Roblox-Security": token },
+          });
           const data = await res.json();
 
           if (data.state === "valid") {
             el.innerText =
-              "Token: valid (user " + data.userId + ", " + token.length + " chars)";
+              "Token: OK（あなたの userId " + data.userId + "）";
             el.className = "token-status ok";
           } else if (data.state === "invalid") {
             el.innerText =
-              "Token: invalid — copy .ROBLOSECURITY again from Roblox";
+              "Token: 無効 — Roblox で貼り直し";
             el.className = "token-status warn";
           } else if (data.state === "unknown") {
             el.innerText =
-              "Token: saved (" +
-              token.length +
-              " chars) — server could not verify, but will try";
+              "Token: 保存済み（検証できず送信は試します）";
             el.className = "token-status ok";
           } else if (data.valid) {
-            el.innerText = "Token: saved (" + token.length + " chars)";
+            el.innerText = "Token: 保存済み";
             el.className = "token-status ok";
           } else {
-            el.innerText =
-              "Token: invalid — copy .ROBLOSECURITY again from Roblox";
+            el.innerText = "Token: 無効";
             el.className = "token-status warn";
           }
         } catch {
-          el.innerText = "Token: saved (" + token.length + " chars, not verified)";
+          el.innerText = "Token: 保存済み（オフラインのため未検証）";
           el.className = "token-status ok";
         }
       }
@@ -680,19 +589,25 @@
         );
 
         if (!value) {
-          alert("Paste your .ROBLOSECURITY cookie value first.");
+          alert(".ROBLOSECURITY の値を貼ってください。");
           return;
         }
 
         localStorage.setItem(TOKEN_KEY, value);
         document.getElementById("tokenInput").value = "";
         await updateTokenStatus();
+        if (pollTimer) {
+          loadStatus();
+        }
       }
 
       function clearToken() {
         localStorage.removeItem(TOKEN_KEY);
         document.getElementById("tokenInput").value = "";
         updateTokenStatus();
+        if (pollTimer) {
+          loadStatus();
+        }
       }
 
       function apiHeaders() {
@@ -707,19 +622,28 @@
       }
 
       async function loadStatus() {
-        if (!currentUsername) {
+        const uid = getTargetUserId();
+        const uname = document.getElementById("usernameInput").value.trim();
+
+        if (!uid && !uname) {
           return;
         }
 
         try {
-          const res = await fetch(
-            getApiBase() +
-              "/status?username=" +
-              encodeURIComponent(currentUsername) +
-              "&t=" +
-              Date.now(),
-            { headers: apiHeaders() },
-          );
+          let url =
+            API_BASE +
+            "/status?t=" +
+            Date.now();
+
+          if (uid) {
+            url += "&userId=" + encodeURIComponent(uid);
+          } else {
+            url += "&username=" + encodeURIComponent(uname);
+          }
+
+          const res = await fetch(url, {
+            headers: apiHeaders(),
+          });
 
           const data = await res.json();
 
@@ -780,18 +704,20 @@
         } catch (err) {
           console.error(err);
 
-          document.getElementById("status").innerText = "SERVER WAKING UP...";
+          document.getElementById("status").innerText = "NETWORK";
           document.getElementById("game").innerText =
-            "Render free server starting...";
+            "API に接続できません。";
         }
       }
 
       function startMonitor() {
-        currentUsername = document
+        const uid = getTargetUserId();
+        const uname = document
           .getElementById("usernameInput")
           .value.trim();
 
-        if (!currentUsername) {
+        if (!uid && !uname) {
+          alert("「User ID を保存」するか、下のユーザー名を入力してください。");
           return;
         }
 
@@ -799,7 +725,7 @@
         loadStatus();
       }
 
-      updateApiUrlStatus();
+      updateTargetIdStatus();
       runBootSequence();
     </script>
   </body>

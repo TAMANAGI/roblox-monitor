@@ -557,21 +557,47 @@ def status():
 
     try:
 
-        username = request.args.get("username")
+        username_arg = (
+            request.args.get("username") or ""
+        ).strip()
 
-        if not username:
+        user_id_raw = (
+            request.args.get("userId") or ""
+        ).strip()
 
-            return jsonify({
-                "error": "username required"
-            })
+        user_id = None
 
-        user_id = get_user_id(username)
+        if user_id_raw:
 
-        if not user_id:
+            try:
 
-            return jsonify({
-                "error": "user not found"
-            })
+                user_id = int(user_id_raw)
+
+                if user_id <= 0:
+
+                    raise ValueError()
+
+            except (ValueError, TypeError):
+
+                return jsonify({
+                    "error": "invalid userId",
+                })
+
+        else:
+
+            if not username_arg:
+
+                return jsonify({
+                    "error": "username or userId required",
+                })
+
+            user_id = get_user_id(username_arg)
+
+            if not user_id:
+
+                return jsonify({
+                    "error": "user not found",
+                })
 
         roblosecurity = get_request_roblosecurity()
 
@@ -723,13 +749,6 @@ def status():
 
                 presence_note = tips.strip()
 
-            presence_note = (
-                (presence_note + " • ") if presence_note else ""
-            ) + (
-                "ヒント: 同じ Flask を自分の PC で起動して、UI の "
-                "API の URL に http://127.0.0.1:ポート を入れると取得できることがあります。"
-            )
-
         if auth_state == "invalid":
 
             presence_note = (
@@ -746,13 +765,33 @@ def status():
 
         followers = get_followers_count(user_id)
 
+        name_fallback = ""
+
+        if username_arg:
+
+            name_fallback = username_arg
+
+        else:
+
+            name_fallback = str(user_id)
+
+        roblox_name = info.get(
+            "name",
+            "",
+        )
+
+        roblox_dn = info.get(
+            "displayName",
+            "",
+        )
+
         response = {
 
             "username":
-                info.get("name", username),
+                roblox_name or name_fallback,
 
             "displayName":
-                info.get("displayName", username),
+                roblox_dn or roblox_name or name_fallback,
 
             "userId":
                 user_id,
