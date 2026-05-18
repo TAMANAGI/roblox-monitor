@@ -190,6 +190,14 @@
 
           const data = await res.json();
 
+          if (data.error) {
+            document.getElementById("status").innerText = "USER OFFLINE";
+
+            document.getElementById("game").innerText = data.error;
+
+            return;
+          }
+
           console.log(data);
 
           document.getElementById("avatar").src = data.avatar;
