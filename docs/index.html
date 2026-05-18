@@ -25,6 +25,23 @@
         margin-bottom: 40px;
       }
 
+      .search-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+      }
+
+      .search-row input {
+        flex: 1 1 260px;
+        min-width: min(100%, 260px);
+        width: auto;
+      }
+
+      .search-row button {
+        margin-left: 0;
+      }
+
       .settings {
         background: #1a1a1a;
         padding: 24px;
@@ -262,13 +279,23 @@
     </div>
 
     <div class="search">
-      <input
-        id="usernameInput"
-        placeholder="監視するユーザー名（@は不要）例: nagi_LoveIsToSuffer"
-        autocomplete="off"
-      />
+      <div class="search-row">
+        <input
+          id="usernameInput"
+          placeholder="監視するユーザー名（@は不要）例: nagi_LoveIsToSuffer"
+          autocomplete="off"
+        />
 
-      <button onclick="startMonitor()">Monitor</button>
+        <button type="button" onclick="startMonitor()">Monitor</button>
+
+        <button
+          type="button"
+          class="secondary"
+          onclick="refreshStatusNow()"
+        >
+          再読み込み
+        </button>
+      </div>
     </div>
 
     <div class="profile">
@@ -322,13 +349,10 @@
 
       const ROBLOX_ASCII = [
         "┌──────────────────────────────────────┐",
-        "│  ██╗    ██╗███████╗██╗      ██████╗ │",
-        "│  ██║    ██║██╔════╝██║     ██╔═══██╗│",
-        "│  ██║ █╗ ██║█████╗  ██║     ██║   ██║│",
-        "│  ██║███╗██║██╔══╝  ██║     ██║   ██║│",
-        "│  ╚███╔███╔╝███████╗███████╗╚██████╔╝│",
-        "│   ╚══╝╚══╝ ╚══════╝╚══════╝ ╚═════╝ │",
-        "│         WELCOME TO ROBLOX            │",
+        "│                                      │",
+        "│              わほー                  │",
+        "│         welcome to roblox            │",
+        "│                                      │",
         "└──────────────────────────────────────┘",
       ].join("\n");
 
@@ -682,6 +706,17 @@
         document.getElementById("usernameInput").value = uname;
 
         logs.length = 0;
+        loadStatus();
+      }
+
+      function refreshStatusNow() {
+        if (!getWatchUsername()) {
+          alert(
+            "ユーザー名を入力するか、Monitor で一度保存してください。",
+          );
+          return;
+        }
+
         loadStatus();
       }
 
