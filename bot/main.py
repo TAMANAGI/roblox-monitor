@@ -1,6 +1,7 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 
+import os
 import requests
 import urllib3
 import time
@@ -14,6 +15,42 @@ CORS(app)
 # =========================
 
 BROOKHAVEN_PLACE_ID = 4924922222
+
+ROBLOSECURITY = os.environ.get("ROBLOSECURITY", "").strip()
+
+ROBLOX_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/120.0.0.0 Safari/537.36"
+    ),
+    "Accept": "application/json",
+}
+
+
+def roblox_session():
+
+    session = requests.Session()
+    session.headers.update(ROBLOX_HEADERS)
+
+    if ROBLOSECURITY:
+        session.cookies.set(
+            ".ROBLOSECURITY",
+            ROBLOSECURITY,
+            domain=".roblox.com",
+        )
+
+    return session
+
+
+def get_csrf_token(session):
+
+    r = session.post(
+        "https://auth.roblox.com/v2/logout",
+        verify=False,
+    )
+
+    return r.headers.get("x-csrf-token", "")
 
 # =========================
 # USER ID
@@ -64,17 +101,35 @@ def get_presence(user_id):
             "userIds": [user_id]
         }
 
-        r = requests.post(
+        session = roblox_session()
+        headers = {"Content-Type": "application/json"}
+
+        if ROBLOSECURITY:
+            token = get_csrf_token(session)
+            if token:
+                headers["X-CSRF-TOKEN"] = token
+
+        r = session.post(
             url,
             json=payload,
-            verify=False
+            headers=headers,
+            verify=False,
+            timeout=15,
         )
 
-        return r.json()
+        data = r.json()
 
-    except:
+        if r.status_code != 200:
+            return {
+                "error": data,
+                "status_code": r.status_code,
+            }
 
-        return {}
+        return data
+
+    except Exception as e:
+
+        return {"error": str(e)}
 
 # =========================
 # USER INFO
@@ -210,51 +265,58 @@ def status():
 
         presence = get_presence(user_id)
 
+        status = "UNKNOWN"
+        game = ""
+        presence_error = ""
+
         if (
-            "userPresences" not in presence or
-            len(presence["userPresences"]) == 0
+            "userPresences" in presence and
+            len(presence["userPresences"]) > 0
         ):
 
-            return jsonify({
-                "error": "presence unavailable"
-            })
+            user = presence["userPresences"][0]
 
-        user = presence["userPresences"][0]
+            state = user["userPresenceType"]
 
-        state = user["userPresenceType"]
+            place = user.get("placeId")
 
-        place = user.get("placeId")
+            # OFFLINE
+            if state == 0:
 
-        status = "OFFLINE"
-        game = ""
+                status = "OFFLINE"
 
-        # OFFLINE
-        if state == 0:
+            # ONLINE
+            elif state == 1:
 
-            status = "OFFLINE"
+                status = "ONLINE"
 
-        # ONLINE
-        elif state == 1:
+            # IN GAME
+            elif state == 2:
 
-            status = "ONLINE"
+                status = "IN GAME"
 
-        # IN GAME
-        elif state == 2:
+                if place == BROOKHAVEN_PLACE_ID:
 
-            status = "IN GAME"
+                    game = "Brookhaven RP"
 
-            if place == BROOKHAVEN_PLACE_ID:
+                else:
 
-                game = "Brookhaven RP"
+                    game = f"PlaceId {place}"
 
+            # STUDIO
+            elif state == 3:
+
+                status = "IN STUDIO"
+
+        else:
+
+            if not ROBLOSECURITY:
+                presence_error = (
+                    "presence unavailable "
+                    "(set ROBLOSECURITY on Render)"
+                )
             else:
-
-                game = f"PlaceId {place}"
-
-        # STUDIO
-        elif state == 3:
-
-            status = "IN STUDIO"
+                presence_error = "presence unavailable"
 
         info = get_user_info(user_id)
 
@@ -264,7 +326,7 @@ def status():
 
         followers = get_followers_count(user_id)
 
-        return jsonify({
+        response = {
 
             "username":
                 info.get("name", username),
@@ -296,9 +358,13 @@ def status():
             "updated":
                 time.strftime(
                     "%Y-%m-%d %H:%M:%S"
-                )
+                ),
+        }
 
-        })
+        if presence_error:
+            response["presenceError"] = presence_error
+
+        return jsonify(response)
 
     except Exception as e:
 

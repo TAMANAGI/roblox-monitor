@@ -191,24 +191,31 @@
           const data = await res.json();
 
           if (data.error) {
-            document.getElementById("status").innerText = "USER OFFLINE";
+            document.getElementById("status").innerText = "ERROR";
 
             document.getElementById("game").innerText = data.error;
 
             return;
           }
 
-          console.log(data);
+          const avatarEl = document.getElementById("avatar");
 
-          document.getElementById("avatar").src = data.avatar;
+          if (data.avatar) {
+            avatarEl.src = data.avatar;
+          } else {
+            avatarEl.removeAttribute("src");
+          }
 
-          document.getElementById("displayName").innerText = data.displayName;
+          document.getElementById("displayName").innerText =
+            data.displayName || "";
 
-          document.getElementById("username").innerText = "@" + data.username;
+          document.getElementById("username").innerText =
+            "@" + (data.username || "");
 
-          document.getElementById("status").innerText = data.status;
+          document.getElementById("status").innerText = data.status || "UNKNOWN";
 
-          document.getElementById("game").innerText = data.game || "";
+          document.getElementById("game").innerText =
+            data.presenceError || data.game || "";
 
           document.getElementById("userId").innerText = data.userId;
 
