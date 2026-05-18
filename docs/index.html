@@ -488,13 +488,26 @@
           });
           const data = await res.json();
 
-          if (data.valid) {
+          if (data.state === "valid") {
             el.innerText =
               "Token: valid (user " + data.userId + ", " + token.length + " chars)";
             el.className = "token-status ok";
+          } else if (data.state === "invalid") {
+            el.innerText =
+              "Token: invalid — copy .ROBLOSECURITY again from Roblox";
+            el.className = "token-status warn";
+          } else if (data.state === "unknown") {
+            el.innerText =
+              "Token: saved (" +
+              token.length +
+              " chars) — server could not verify, but will try";
+            el.className = "token-status ok";
+          } else if (data.valid) {
+            el.innerText = "Token: saved (" + token.length + " chars)";
+            el.className = "token-status ok";
           } else {
             el.innerText =
-              "Token: invalid or expired — copy a fresh cookie from Roblox";
+              "Token: invalid — copy .ROBLOSECURITY again from Roblox";
             el.className = "token-status warn";
           }
         } catch {

@@ -65,7 +65,10 @@ def get_request_roblosecurity():
     return normalize_roblosecurity(ROBLOSECURITY)
 
 
-def verify_roblosecurity(roblosecurity):
+def check_roblosecurity(roblosecurity):
+
+    if not roblosecurity:
+        return "missing", None, None
 
     session = roblox_session(roblosecurity)
 
@@ -77,16 +80,17 @@ def verify_roblosecurity(roblosecurity):
             timeout=15,
         )
 
-        if r.status_code != 200:
-            return False, None
+        if r.status_code == 200:
+            return "valid", r.json().get("id"), None
 
-        data = r.json()
+        if r.status_code == 401:
+            return "invalid", None, 401
 
-        return True, data.get("id")
+        return "unknown", None, r.status_code
 
     except Exception:
 
-        return False, None
+        return "unknown", None, None
 
 
 def roblox_session(roblosecurity=""):
@@ -99,23 +103,16 @@ def roblox_session(roblosecurity=""):
             ".ROBLOSECURITY",
             roblosecurity,
             domain=".roblox.com",
+            path="/",
+        )
+        session.headers["Cookie"] = (
+            ".ROBLOSECURITY=" + roblosecurity
         )
 
     return session
 
 
 def get_csrf_token(session):
-
-    r = session.post(
-        "https://auth.roblox.com/v2/logout",
-        verify=False,
-        timeout=15,
-    )
-
-    token = r.headers.get("x-csrf-token", "")
-
-    if token:
-        return token
 
     r = session.post(
         "https://presence.roblox.com/v1/presence/users",
@@ -125,6 +122,15 @@ def get_csrf_token(session):
     )
 
     return r.headers.get("x-csrf-token", "")
+
+
+def has_presence_data(presence):
+
+    return (
+        isinstance(presence, dict) and
+        "userPresences" in presence and
+        len(presence["userPresences"]) > 0
+    )
 
 # =========================
 # USER ID
@@ -347,19 +353,39 @@ def auth_verify():
             "message": "no token",
         })
 
-    valid, user_id = verify_roblosecurity(roblosecurity)
+    state, user_id, status_code = check_roblosecurity(
+        roblosecurity,
+    )
 
-    if not valid:
+    if state == "valid":
 
         return jsonify({
+            "state": "valid",
+            "valid": True,
+            "userId": user_id,
+            "message": "ok",
+        })
+
+    if state == "invalid":
+
+        return jsonify({
+            "state": "invalid",
             "valid": False,
             "message": "token invalid or expired",
         })
 
     return jsonify({
+        "state": "unknown",
         "valid": True,
-        "userId": user_id,
-        "message": "ok",
+        "message": (
+            "could not verify from server"
+            + (
+                f" (HTTP {status_code})"
+                if status_code
+                else ""
+            )
+            + " — token will still be tried"
+        ),
     })
 
 
@@ -385,25 +411,34 @@ def status():
             })
 
         roblosecurity = get_request_roblosecurity()
-        token_invalid = False
+        auth_state, _, _ = check_roblosecurity(roblosecurity)
+        presence_note = ""
+
+        if auth_state == "invalid":
+            roblosecurity = ""
+
+        presence = None
 
         if roblosecurity:
-            valid, _ = verify_roblosecurity(roblosecurity)
-            if not valid:
-                token_invalid = True
-                roblosecurity = ""
+            presence = get_presence(user_id, roblosecurity)
 
-        presence = get_presence(user_id, roblosecurity)
+        if not has_presence_data(presence):
+            public_presence = get_presence(user_id, "")
+            if has_presence_data(public_presence):
+                if roblosecurity:
+                    presence_note = (
+                        "Login cookie could not be used from Render "
+                        "(public API fallback)"
+                    )
+                presence = public_presence
+            elif presence is None:
+                presence = public_presence
 
         status = "UNKNOWN"
         game = ""
         presence_error = ""
-        presence_note = ""
 
-        if (
-            "userPresences" in presence and
-            len(presence["userPresences"]) > 0
-        ):
+        if has_presence_data(presence):
 
             user = presence["userPresences"][0]
 
@@ -449,9 +484,9 @@ def status():
             else:
                 presence_error = "presence unavailable"
 
-        if token_invalid:
+        if auth_state == "invalid":
             presence_note = (
-                "Saved token is invalid or expired — "
+                "Login cookie rejected by Roblox (401) — "
                 "copy a fresh .ROBLOSECURITY from Roblox"
             )
 
