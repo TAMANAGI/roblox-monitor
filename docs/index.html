@@ -259,11 +259,35 @@
         </button>
       </div>
 
-      <div id="tokenStatus" class="token-status">Token: not set</div>
+      <div class="settings-hint" style="margin-top: 1.25rem">
+        <strong>API の URL</strong> — 既定は Render。
+        Presence が取れない場合は、このリポジトリの Flask を
+        <code>python -m flask</code> などで<strong>自分の PC</strong>で動かし、ここに
+        <code>http://127.0.0.1:5000</code> のように入力してください。
+        （ホーム回線経由だと Presence API が応答しやすいことがあります。末尾のスラッシュは付けません。）
+      </div>
+
+      <div class="settings-row">
+        <input
+          id="apiUrlInput"
+          class="token-input"
+          type="text"
+          autocomplete="off"
+          placeholder="https://roblox-monitor-xxxx.onrender.com"
+        />
+
+        <button type="button" onclick="saveApiUrl()">Save API URL</button>
+
+        <button type="button" class="secondary" onclick="clearApiUrl()">
+          Reset to Render
+        </button>
+      </div>
+
+      <div id="apiUrlStatus" class="token-status">API: …</div>
     </div>
 
     <div class="search">
-      <input id="usernameInput" placeholder="Roblox Username" />
+      <input id="usernameInput" placeholder="@username（例: nagi_LoveIsToSuffer）" />
 
       <button onclick="startMonitor()">Monitor</button>
     </div>
@@ -309,9 +333,67 @@
     </div>
 
     <script>
-      const API_BASE = "https://roblox-monitor-owse.onrender.com";
+      const DEFAULT_API_BASE = "https://roblox-monitor-owse.onrender.com";
       const TOKEN_KEY = "robloxRoblosecurity";
+      const API_URL_KEY = "robloxApiBaseUrl";
       const MIN_BOOT_MS = 6000;
+
+      function getApiBase() {
+        const raw = (localStorage.getItem(API_URL_KEY) || "").trim();
+        const base = raw.replace(/\/$/, "");
+        return base || DEFAULT_API_BASE;
+      }
+
+      function updateApiUrlStatus() {
+        const st = document.getElementById("apiUrlStatus");
+        const inp = document.getElementById("apiUrlInput");
+        if (!st || !inp) {
+          return;
+        }
+        const cur = getApiBase();
+        inp.placeholder = DEFAULT_API_BASE;
+        const saved = (localStorage.getItem(API_URL_KEY) || "").trim();
+        if (!saved) {
+          st.innerText = "API: デフォルト（Render）";
+        } else {
+          st.innerText = "API: " + cur;
+        }
+      }
+
+      function saveApiUrl() {
+        if (!raw) {
+          alert("API のベース URL を入力してください（例: http://127.0.0.1:5000）");
+          return;
+        }
+        let u = raw.replace(/\/$/, "");
+        if (!u.startsWith("http://") && !u.startsWith("https://")) {
+          u = "http://" + u;
+        }
+        try {
+          new URL(u);
+        } catch {
+          alert("有効な URL 形式で入力してください（例: http://127.0.0.1:5000）");
+          return;
+        }
+        localStorage.setItem(API_URL_KEY, u);
+        document.getElementById("apiUrlInput").value = "";
+        updateApiUrlStatus();
+        if (pollTimer) {
+          clearInterval(pollTimer);
+        }
+        pollTimer = setInterval(loadStatus, 5000);
+        loadStatus();
+      }
+
+      function clearApiUrl() {
+        localStorage.removeItem(API_URL_KEY);
+        updateApiUrlStatus();
+        if (pollTimer) {
+          clearInterval(pollTimer);
+        }
+        pollTimer = setInterval(loadStatus, 5000);
+        loadStatus();
+      }
 
       const ROBLOX_ASCII = [
         "┌──────────────────────────────────────┐",
@@ -372,9 +454,10 @@
       }
 
       async function pingHealth() {
-        const res = await fetch(API_BASE + "/health?t=" + Date.now(), {
-          headers: apiHeaders(),
-        });
+        const res = await fetch(
+          getApiBase() + "/health?t=" + Date.now(),
+          { headers: apiHeaders() },
+        );
         return res.ok;
       }
 
@@ -429,6 +512,10 @@
         }, 500);
 
         await updateTokenStatus();
+        updateApiUrlStatus();
+        if (document.getElementById("apiUrlInput")) {
+          document.getElementById("apiUrlInput").value = "";
+        }
         pollTimer = setInterval(loadStatus, 5000);
       }
 
@@ -451,7 +538,10 @@
         let value = raw.trim();
 
         if (value.toLowerCase().startsWith(".roblosecurity=")) {
-          value = value.split("=", 1)[1].trim();
+          const parts = value.split("=", 2);
+          if (parts.length > 1) {
+            value = parts[1].trim();
+          }
         }
 
         if (
@@ -483,9 +573,10 @@
         el.className = "token-status";
 
         try {
-          const res = await fetch(API_BASE + "/auth/verify", {
-            headers: { "X-Roblox-Security": token },
-          });
+          const res = await fetch(
+            getApiBase() + "/auth/verify",
+            { headers: { "X-Roblox-Security": token } },
+          );
           const data = await res.json();
 
           if (data.state === "valid") {
@@ -555,7 +646,7 @@
 
         try {
           const res = await fetch(
-            API_BASE +
+            getApiBase() +
               "/status?username=" +
               encodeURIComponent(currentUsername) +
               "&t=" +

@@ -25,11 +25,14 @@ ROBLOSECURITY = os.environ.get("ROBLOSECURITY", "").strip()
 
 ROBLOX_HEADERS = {
     "User-Agent": (
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
         "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/120.0.0.0 Safari/537.36"
+        "Chrome/131.0.0.0 Safari/537.36"
     ),
-    "Accept": "application/json",
+    "Accept": "application/json,text/plain;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9,ja;q=0.8",
+    "Origin": "https://www.roblox.com",
+    "Referer": "https://www.roblox.com/",
 }
 
 
@@ -97,6 +100,7 @@ def roblox_session(roblosecurity=""):
 
     session = requests.Session()
     session.headers.update(ROBLOX_HEADERS)
+    session.trust_env = False
 
     if roblosecurity:
         session.cookies.set(
@@ -104,9 +108,6 @@ def roblox_session(roblosecurity=""):
             roblosecurity,
             domain=".roblox.com",
             path="/",
-        )
-        session.headers["Cookie"] = (
-            ".ROBLOSECURITY=" + roblosecurity
         )
 
     return session
@@ -171,7 +172,7 @@ def get_user_id(username):
 # PRESENCE
 # =========================
 
-def get_presence(user_id, roblosecurity=""):
+def get_presence(user_id, roblosecurity="", retries=3):
 
     try:
 
@@ -184,43 +185,205 @@ def get_presence(user_id, roblosecurity=""):
         session = roblox_session(roblosecurity)
         headers = {"Content-Type": "application/json"}
 
+        no_cookie_boot = roblosecurity in ("", None)
+
         if roblosecurity:
             token = get_csrf_token(session)
             if token:
                 headers["X-CSRF-TOKEN"] = token
 
-        for _ in range(2):
+        last_exc = None
+        backoff = 0.6
 
-            r = session.post(
-                url,
-                json=payload,
-                headers=headers,
-                verify=False,
-                timeout=15,
-            )
+        for attempt in range(retries):
 
-            if (
-                r.status_code == 403 and
-                r.headers.get("x-csrf-token")
-            ):
-                headers["X-CSRF-TOKEN"] = r.headers["x-csrf-token"]
-                continue
+            try:
 
-            break
+                for _ in range(2):
 
-        data = r.json()
+                    r = session.post(
+                        url,
+                        json=payload,
+                        headers=headers,
+                        verify=False,
+                        timeout=25,
+                    )
 
-        if r.status_code != 200:
-            return {
-                "error": data,
-                "status_code": r.status_code,
-            }
+                    if (
+                        r.status_code == 403 and
+                        r.headers.get("x-csrf-token")
+                    ):
+                        headers["X-CSRF-TOKEN"] = r.headers["x-csrf-token"]
+                        continue
 
-        return data
+                    break
+
+                if r.status_code == 429 and attempt + 1 < retries:
+                    time.sleep(backoff * (attempt + 1))
+                    continue
+
+                try:
+                    data = r.json()
+                except ValueError:
+
+                    fail = (
+                        "[non-json body] "
+                        + r.text.strip()[:200]
+                    )
+
+                    last_exc = fail
+
+                    if attempt + 1 < retries:
+
+                        time.sleep(backoff * (attempt + 1))
+
+                        continue
+
+                    return {
+                        "error": {"message": fail},
+                        "status_code": r.status_code,
+                    }
+
+                if r.status_code != 200:
+                    last_exc = data
+
+                    if attempt + 1 < retries:
+
+                        time.sleep(backoff * (attempt + 1))
+
+                        continue
+
+                    return {
+                        "error": data,
+                        "status_code": r.status_code,
+                    }
+
+                if (
+                    isinstance(data.get("userPresences"), list) and
+                    len(data["userPresences"]) == 0 and
+                    no_cookie_boot and
+                    attempt + 1 < retries
+                ):
+                    time.sleep(backoff * (attempt + 1))
+                    continue
+
+                return data
+
+            except (
+                requests.Timeout,
+                requests.ConnectionError,
+            ) as exc:
+
+                last_exc = str(exc)
+
+                if attempt + 1 < retries:
+
+                    time.sleep(backoff * (attempt + 1))
+
+                    continue
+
+                return {"error": str(exc)}
+
+        return {"error": last_exc or "presence request failed"}
 
     except Exception as e:
 
         return {"error": str(e)}
+
+
+def pick_richer_presence(left, right):
+
+    la = has_presence_data(left)
+    lb = has_presence_data(right)
+
+    if lb and not la:
+
+        return right
+
+    if la and not lb:
+
+        return left
+
+    if (
+        isinstance(left, dict) and
+        isinstance(right, dict) and
+        "userPresences" in left and
+        "userPresences" in right and
+        len(left["userPresences"]) > 0 and
+        len(right["userPresences"]) > 0
+    ):
+
+        ua = left["userPresences"][0]
+        ub = right["userPresences"][0]
+
+        if ub.get(
+            "userPresenceType",
+            0,
+        ) > ua.get(
+            "userPresenceType",
+            0,
+        ):
+
+            return right
+
+        if (
+            ua.get(
+                "userPresenceType",
+            ) ==
+            ub.get(
+                "userPresenceType",
+            ) and
+            (
+                ua.get(
+                    "placeId",
+                ) is None and
+                ub.get(
+                    "placeId",
+                )
+            )
+        ):
+
+            return right
+
+    return left
+
+
+def get_universe_name(universe_id):
+
+    if universe_id is None:
+        return ""
+
+    try:
+
+        url = (
+            "https://games.roblox.com/v1/games"
+            "?universeIds=" +
+            str(int(universe_id))
+        )
+
+        s = roblox_session("")
+        r = s.get(url, verify=False, timeout=15)
+
+        payload = r.json()
+
+        rows = payload.get(
+            "data",
+            [],
+        )
+
+        if len(rows) == 0:
+
+            return ""
+
+        return rows[0].get(
+            "name",
+            "",
+        )
+
+    except Exception:
+
+        return ""
+
 
 # =========================
 # USER INFO
@@ -411,32 +574,47 @@ def status():
             })
 
         roblosecurity = get_request_roblosecurity()
-        auth_state, _, _ = check_roblosecurity(roblosecurity)
+
+        cookie_val = roblosecurity
+        auth_state, _, auth_http = check_roblosecurity(roblosecurity)
         presence_note = ""
+        unavailable = {}
 
         if auth_state == "invalid":
-            roblosecurity = ""
+            cookie_val = ""
 
         presence = None
 
-        if roblosecurity:
-            presence = get_presence(user_id, roblosecurity)
+        public_rsp = get_presence(user_id, "")
 
-        if not has_presence_data(presence):
-            public_presence = get_presence(user_id, "")
-            if has_presence_data(public_presence):
-                if roblosecurity:
-                    presence_note = (
-                        "Login cookie could not be used from Render "
-                        "(public API fallback)"
-                    )
-                presence = public_presence
-            elif presence is None:
-                presence = public_presence
+        if isinstance(public_rsp, dict) and public_rsp.get("status_code"):
+            unavailable["publicHttp"] = public_rsp["status_code"]
 
+        if has_presence_data(public_rsp):
+            presence = public_rsp
+
+        if cookie_val:
+            ck_rsp = get_presence(user_id, cookie_val)
+
+            if isinstance(
+                ck_rsp,
+                dict,
+            ) and ck_rsp.get(
+                "status_code",
+            ):
+
+                unavailable["cookieHttp"] = ck_rsp["status_code"]
+
+            if has_presence_data(ck_rsp):
+                presence = pick_richer_presence(
+                    presence if presence is not None else {},
+                    ck_rsp,
+                )
         status = "UNKNOWN"
         game = ""
         presence_error = ""
+        last_location = ""
+        universe_name = ""
 
         if has_presence_data(presence):
 
@@ -445,6 +623,12 @@ def status():
             state = user["userPresenceType"]
 
             place = user.get("placeId")
+            univ = user.get("universeId")
+
+            last_location = user.get(
+                "lastLocation",
+                "",
+            ) or ""
 
             # OFFLINE
             if state == 0:
@@ -461,7 +645,13 @@ def status():
 
                 status = "IN GAME"
 
-                if place == BROOKHAVEN_PLACE_ID:
+                universe_name = get_universe_name(univ)
+
+                if universe_name:
+
+                    game = universe_name
+
+                elif place == BROOKHAVEN_PLACE_ID:
 
                     game = "Brookhaven RP"
 
@@ -474,20 +664,78 @@ def status():
 
                 status = "IN STUDIO"
 
+            if (
+                (
+                    status == "OFFLINE" or
+                    status == "ONLINE"
+                ) and not game and last_location
+            ):
+
+                game = last_location
+
         else:
 
-            if not roblosecurity:
-                presence_error = (
-                    "presence unavailable "
-                    "(set .ROBLOSECURITY in Settings)"
+            detail = ""
+
+            detail += (
+                "Presence API がこのサーバーから応答していません。"
+            )
+
+            detail += (
+                " Roblox はクラウド（Render 等）からの Presence 取得をブロックすることがあります。"
+            )
+
+            pub_code = unavailable.get(
+                "publicHttp",
+            )
+
+            if pub_code:
+
+                detail += " (presence HTTP "
+                detail += str(pub_code)
+                detail += ")"
+
+            presence_error = detail
+
+            tips = ""
+
+            ck_code = unavailable.get(
+                "cookieHttp",
+            )
+
+            if ck_code:
+
+                tips += (" cookie側 HTTP "
+                         + str(ck_code))
+
+            if (
+                auth_http and
+                auth_http not in (
+                    None,
+                    200,
+                    401,
                 )
-            else:
-                presence_error = "presence unavailable"
+            ):
+                tips += (" 認証検証 HTTP "
+                         + str(auth_http))
+
+            if tips.strip():
+
+                presence_note = tips.strip()
+
+            presence_note = (
+                (presence_note + " • ") if presence_note else ""
+            ) + (
+                "ヒント: 同じ Flask を自分の PC で起動して、UI の "
+                "API の URL に http://127.0.0.1:ポート を入れると取得できることがあります。"
+            )
 
         if auth_state == "invalid":
+
             presence_note = (
-                "Login cookie rejected by Roblox (401) — "
-                "copy a fresh .ROBLOSECURITY from Roblox"
+                "Cookie は Roblox から拒否されています（401）。"
+                " 新しい .ROBLOSECURITY を貼り直してください。"
+                + (" | " + presence_note if presence_note else "")
             )
 
         info = get_user_info(user_id)
@@ -517,6 +765,12 @@ def status():
 
             "game":
                 game,
+
+            "lastLocation":
+                last_location,
+
+            "universeName":
+                universe_name,
 
             "friends":
                 friends,
