@@ -1,63 +1,111 @@
-<!DOCTYPE html>
-    <span id="username"></span>
-  </div>
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Roblox Monitor</title>
 
-  <div class="status" id="status">
-    Loading...
-  </div>
+    <style>
+      body {
+        background: #111;
+        color: white;
+        font-family: sans-serif;
+        padding: 40px;
+      }
 
-  <div class="game" id="game"></div>
+      .title {
+        font-size: 40px;
+        margin-bottom: 30px;
+      }
 
-  <div class="updated" id="updated"></div>
+      .status {
+        font-size: 60px;
+        font-weight: bold;
+        margin-bottom: 10px;
+      }
 
-</div>
+      .game {
+        font-size: 30px;
+        margin-bottom: 10px;
+      }
 
-<div class="logs">
-  <h2>Logs</h2>
+      .updated {
+        color: #aaa;
+        margin-bottom: 40px;
+      }
 
-  <div id="logs"></div>
-</div>
+      .log {
+        background: #1d1d1d;
+        padding: 12px;
+        border-radius: 10px;
+        margin-bottom: 10px;
+        font-family: monospace;
+      }
+    </style>
+  </head>
 
-<script>
+  <body>
+    <div class="title">Roblox Presence Monitor</div>
 
-async function loadStatus(){
+    <div id="username"></div>
 
-  const res = await fetch("status.json?t=" + Date.now());
+    <div class="status" id="status">Loading...</div>
 
-  const data = await res.json();
+    <div class="game" id="game"></div>
 
-  document.getElementById("username").innerText = data.username;
-  document.getElementById("status").innerText = data.status;
-  document.getElementById("game").innerText = data.game;
-  document.getElementById("updated").innerText = "Updated: " + data.updated;
+    <div class="updated" id="updated"></div>
 
-  const logsDiv = document.getElementById("logs");
+    <h2>Logs</h2>
 
-  logsDiv.innerHTML = "";
+    <div id="logs"></div>
 
-  if(data.logs){
+    <script>
+      async function loadStatus() {
+        try {
+          const res = await fetch(
+            "https://YOUR-RENDER-URL.onrender.com/status",
+          );
 
-    data.logs.reverse().forEach(log => {
+          const data = await res.json();
 
-      const el = document.createElement("div");
+          console.log(data);
 
-      el.className = "log-item";
+          document.getElementById("username").innerText =
+            "USERNAME: " + data.username;
 
-      el.innerText = JSON.stringify(log, null, 2);
+          document.getElementById("status").innerText = data.status;
 
-      logsDiv.appendChild(el);
+          document.getElementById("game").innerText = data.game || "";
 
-    });
+          document.getElementById("updated").innerText =
+            "Updated: " + data.updated;
 
-  }
+          const logsDiv = document.getElementById("logs");
 
-}
+          logsDiv.innerHTML = "";
 
-loadStatus();
+          data.logs
+            .slice()
+            .reverse()
+            .forEach((log) => {
+              const el = document.createElement("div");
 
-setInterval(loadStatus, 10000);
+              el.className = "log";
 
-</script>
+              el.innerText =
+                "[" + log.updated + "] " + log.status + " " + (log.game || "");
 
-</body>
+              logsDiv.appendChild(el);
+            });
+        } catch (err) {
+          console.error(err);
+
+          document.getElementById("status").innerText = "API ERROR";
+        }
+      }
+
+      loadStatus();
+
+      setInterval(loadStatus, 5000);
+    </script>
+  </body>
 </html>

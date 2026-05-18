@@ -1,10 +1,15 @@
+from flask import Flask, jsonify
+from flask_cors import CORS
+
 import requests
 import urllib3
-import json
 import time
-import subprocess
 
 urllib3.disable_warnings()
+
+app = Flask(__name__)
+
+CORS(app)
 
 # =========================
 # 設定
@@ -12,18 +17,14 @@ urllib3.disable_warnings()
 
 USERNAME = "Lawyes4"
 
-# Brookhaven PlaceId
 BROOKHAVEN_PLACE_ID = 4924922222
 
-CHECK_INTERVAL = 30
-
 # =========================
 
-last_status = None
-last_game = None
+logs = []
 
 # =========================
-# ユーザー名 → USER_ID
+# USER_ID取得
 # =========================
 
 def get_user_id(username):
@@ -43,23 +44,22 @@ def get_user_id(username):
 
     data = r.json()
 
-    print(data)
-
-    if len(data["data"]) == 0:
-        raise Exception("ユーザーが見つからない！")
-
     return data["data"][0]["id"]
+
+USER_ID = get_user_id(USERNAME)
+
+print("USER_ID =", USER_ID)
 
 # =========================
 # Presence取得
 # =========================
 
-def get_presence(user_id):
+def get_presence():
 
     url = "https://presence.roblox.com/v1/presence/users"
 
     payload = {
-        "userIds": [user_id]
+        "userIds": [USER_ID]
     }
 
     r = requests.post(
@@ -71,139 +71,59 @@ def get_presence(user_id):
     return r.json()
 
 # =========================
-# Git Push
+# API
 # =========================
 
-def git_push():
+@app.route("/status")
+def status():
 
-    subprocess.run(["git", "add", "."])
+    global logs
 
-    subprocess.run([
-        "git",
-        "commit",
-        "-m",
-        "auto update"
-    ])
+    data = get_presence()
 
-    subprocess.run(["git", "push"])
+    user = data["userPresences"][0]
 
-# =========================
-# USER_ID取得
-# =========================
+    state = user["userPresenceType"]
 
-USER_ID = get_user_id(USERNAME)
+    place = user.get("placeId")
 
-print("USER_ID =", USER_ID)
+    status = "OFFLINE"
+    game = ""
 
-print("監視開始")
+    if state == 1:
 
-# =========================
-# メインループ
-# =========================
+        status = "ONLINE"
 
-while True:
+    elif state == 2:
 
-    try:
+        status = "IN GAME"
 
-        data = get_presence(USER_ID)
+        if place == BROOKHAVEN_PLACE_ID:
 
-        print(data)
-
-        user = data["userPresences"][0]
-
-        state = user["userPresenceType"]
-
-        place = user.get("placeId")
-
-        status = "OFFLINE"
-        game = ""
-
-        # Offline
-        if state == 0:
-
-            status = "OFFLINE"
-
-        # Online
-        elif state == 1:
-
-            status = "ONLINE"
-
-        # In Game
-        elif state == 2:
-
-            status = "IN GAME"
-
-            if place == BROOKHAVEN_PLACE_ID:
-
-                game = "Brookhaven RP"
-
-            else:
-
-                game = f"PlaceId {place}"
-
-        # Studio
-        elif state == 3:
-
-            status = "IN STUDIO"
-
-        # =========================
-        # 状態変化時のみ更新
-        # =========================
-
-        if status != last_status or game != last_game:
-
-            # 過去ログ取得
-            logs = []
-
-            try:
-
-                with open("../docs/status.json", "r") as f:
-
-                    old_data = json.load(f)
-
-                    logs = old_data.get("logs", [])
-
-            except:
-
-                pass
-
-            new_log = {
-                "status": status,
-                "game": game,
-                "username": USERNAME,
-                "updated": time.strftime("%Y-%m-%d %H:%M:%S")
-            }
-
-            logs.append(new_log)
-
-            # 最新50件のみ保持
-            logs = logs[-50:]
-
-            output = {
-                "status": status,
-                "game": game,
-                "username": USERNAME,
-                "updated": time.strftime("%Y-%m-%d %H:%M:%S"),
-                "logs": logs
-            }
-
-            with open("../docs/status.json", "w") as f:
-
-                json.dump(output, f, indent=2)
-
-            print(output)
-
-            git_push()
-
-            last_status = status
-            last_game = game
+            game = "Brookhaven RP"
 
         else:
 
-            print("変化なし")
+            game = f"PlaceId {place}"
 
-    except Exception as e:
+    elif state == 3:
 
-        print("ERROR:", e)
+        status = "IN STUDIO"
 
-    time.sleep(CHECK_INTERVAL)
+    log = {
+        "status": status,
+        "game": game,
+        "updated": time.strftime("%Y-%m-%d %H:%M:%S")
+    }
+
+    logs.append(log)
+
+    logs = logs[-30:]
+
+    return jsonify({
+        "username": USERNAME,
+        "status": status,
+        "game": game,
+        "updated": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "logs": logs
+    })
