@@ -259,36 +259,13 @@
       </div>
 
       <div id="tokenStatus" class="token-status">Token: 未設定</div>
-
-      <div class="settings-hint" style="margin-top: 1rem">
-        監視対象はプロフィール URL の<strong>数字の User ID</strong>で指定することを推奨します。
-      </div>
-
-      <div class="settings-row">
-        <input
-          id="targetUserIdInput"
-          class="token-input"
-          type="text"
-          inputmode="numeric"
-          pattern="[0-9]*"
-          placeholder="例: 10743903486"
-          autocomplete="off"
-        />
-
-        <button type="button" onclick="saveTargetUserId()">User ID を保存</button>
-
-        <button type="button" class="secondary" onclick="clearTargetUserId()">
-          クリア
-        </button>
-      </div>
-
-      <div id="targetIdStatus" class="token-status">User ID: 未設定</div>
     </div>
 
     <div class="search">
       <input
         id="usernameInput"
-        placeholder="ユーザー名は User ID がないときのみ（例: nagi_LoveIsToSuffer）"
+        placeholder="監視するユーザー名（@は不要）例: nagi_LoveIsToSuffer"
+        autocomplete="off"
       />
 
       <button onclick="startMonitor()">Monitor</button>
@@ -337,7 +314,7 @@
     <script>
       const API_BASE = "https://roblox-monitor-owse.onrender.com";
       const TOKEN_KEY = "robloxRoblosecurity";
-      const TARGET_USER_ID_KEY = "robloxTargetUserId";
+      const WATCH_USERNAME_KEY = "robloxWatchUsername";
       const MIN_BOOT_MS = 6000;
 
       const ROBLOX_ASCII = [
@@ -457,7 +434,10 @@
         }, 500);
 
         await updateTokenStatus();
-        updateTargetIdStatus();
+        const savedName = localStorage.getItem(WATCH_USERNAME_KEY);
+        if (savedName) {
+          document.getElementById("usernameInput").value = savedName;
+        }
         pollTimer = setInterval(loadStatus, 5000);
       }
 
@@ -499,44 +479,24 @@
         return normalizeToken(localStorage.getItem(TOKEN_KEY) || "");
       }
 
-      function getTargetUserId() {
-        return (localStorage.getItem(TARGET_USER_ID_KEY) || "").trim();
+      function normalizeWatchUsername(raw) {
+        let s = (raw || "").trim();
+        if (s.startsWith("@")) {
+          s = s.slice(1).trim();
+        }
+        return s;
       }
 
-      function updateTargetIdStatus() {
-        const st = document.getElementById("targetIdStatus");
-        if (!st) {
-          return;
+      function getWatchUsername() {
+        const typed = normalizeWatchUsername(
+          document.getElementById("usernameInput").value,
+        );
+        if (typed) {
+          return typed;
         }
-        const id = getTargetUserId();
-        if (!id) {
-          st.innerText = "User ID: 未設定";
-          return;
-        }
-        st.innerText = "User ID: " + id + " （保存済み）";
-      }
-
-      function saveTargetUserId() {
-        const raw = document.getElementById("targetUserIdInput").value.trim();
-        if (!raw || !/^\d+$/.test(raw)) {
-          alert("数字の User ID だけ入力してください（プロフィールURLの数字）。");
-          return;
-        }
-        localStorage.setItem(TARGET_USER_ID_KEY, raw);
-        document.getElementById("targetUserIdInput").value = "";
-        updateTargetIdStatus();
-        if (pollTimer) {
-          loadStatus();
-        }
-      }
-
-      function clearTargetUserId() {
-        localStorage.removeItem(TARGET_USER_ID_KEY);
-        document.getElementById("targetUserIdInput").value = "";
-        updateTargetIdStatus();
-        if (pollTimer) {
-          loadStatus();
-        }
+        return normalizeWatchUsername(
+          localStorage.getItem(WATCH_USERNAME_KEY) || "",
+        );
       }
 
       async function updateTokenStatus() {
@@ -622,24 +582,19 @@
       }
 
       async function loadStatus() {
-        const uid = getTargetUserId();
-        const uname = document.getElementById("usernameInput").value.trim();
+        const uname = getWatchUsername();
 
-        if (!uid && !uname) {
+        if (!uname) {
           return;
         }
 
         try {
-          let url =
+          const url =
             API_BASE +
-            "/status?t=" +
+            "/status?username=" +
+            encodeURIComponent(uname) +
+            "&t=" +
             Date.now();
-
-          if (uid) {
-            url += "&userId=" + encodeURIComponent(uid);
-          } else {
-            url += "&username=" + encodeURIComponent(uname);
-          }
 
           const res = await fetch(url, {
             headers: apiHeaders(),
@@ -711,21 +666,22 @@
       }
 
       function startMonitor() {
-        const uid = getTargetUserId();
-        const uname = document
-          .getElementById("usernameInput")
-          .value.trim();
+        const uname = normalizeWatchUsername(
+          document.getElementById("usernameInput").value,
+        );
 
-        if (!uid && !uname) {
-          alert("「User ID を保存」するか、下のユーザー名を入力してください。");
+        if (!uname) {
+          alert("@の後ろのユーザー名を入力してください（@は付けなくても大丈夫です）。");
           return;
         }
+
+        localStorage.setItem(WATCH_USERNAME_KEY, uname);
+        document.getElementById("usernameInput").value = uname;
 
         logs.length = 0;
         loadStatus();
       }
 
-      updateTargetIdStatus();
       runBootSequence();
     </script>
   </body>
