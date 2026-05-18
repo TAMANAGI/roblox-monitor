@@ -1,0 +1,86 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Roblox Presence</title>
+    <style>
+      body {
+        width: 360px;
+        margin: 0;
+        padding: 14px;
+        font-family: system-ui, sans-serif;
+        background: #0f0f0f;
+        color: #fff;
+      }
+      h1 {
+        font-size: 15px;
+        margin: 0 0 10px;
+        font-weight: 700;
+      }
+      input[type="text"],
+      input[type="password"] {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 8px 10px;
+        border-radius: 8px;
+        border: none;
+        background: #1f1f1f;
+        color: #fff;
+        font-size: 14px;
+        margin-bottom: 8px;
+      }
+      button {
+        width: 100%;
+        padding: 10px;
+        border: none;
+        border-radius: 8px;
+        background: #2563eb;
+        color: #fff;
+        font-size: 14px;
+        cursor: pointer;
+        margin-top: 4px;
+      }
+      button.secondary {
+        background: #333;
+        margin-top: 8px;
+      }
+      .out {
+        margin-top: 12px;
+        padding: 10px;
+        border-radius: 10px;
+        background: #1a1a1a;
+        font-size: 13px;
+        line-height: 1.45;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      .hint {
+        font-size: 11px;
+        color: #888;
+        margin-top: 8px;
+        line-height: 1.4;
+      }
+      label {
+        font-size: 11px;
+        color: #888;
+        display: block;
+        margin-bottom: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Roblox Presence Monitor</h1>
+    <label for="u">@username</label>
+    <input id="u" type="text" placeholder="nagi_LoveIsToSuffer" autocomplete="off" />
+    <label for="c">.ROBLOSECURITY（任意）</label>
+    <input id="c" type="password" placeholder="未設定なら匿名 API のみ" autocomplete="off" />
+    <button id="go" type="button">Monitor</button>
+    <button id="save" class="secondary" type="button">Cookie を保存</button>
+    <div id="out" class="out">ここに結果が出ます。</div>
+    <p class="hint">
+      通常の Web ページ（GitHub Pages 等）から Roblox へは CORS
+      で繋がりません。拡張からなら直接問い合わせできます。
+    </p>
+    <script src="popup.js"></script>
+  </body>
+</html>

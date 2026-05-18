@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "Roblox Presence Monitor",
+  "version": "1.2.0",
+  "description": "Roblox API にブラウザ拡張から直接アクセスします（自分用・サーバー不要）。",
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Roblox Presence Monitor"
+  },
+  "permissions": ["storage"],
+  "host_permissions": [
+    "https://users.roblox.com/*",
+    "https://presence.roblox.com/*",
+    "https://thumbnails.roblox.com/*",
+    "https://friends.roblox.com/*",
+    "https://games.roblox.com/*"
+  ]
+}

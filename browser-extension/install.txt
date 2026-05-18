@@ -1,0 +1,11 @@
+ブラウザだけで状態を確認する（Chrome / Edge）
+
+1. Chrome で chrome://extensions を開く。
+2. 右上で「デベロッパーモード」をオン。
+3. 「パッケージ化されていない拡張機能を読み込む」→ このフォルダ（browser-extension）を選ぶ。
+4. ツールバーの拡張アイコンをクリックし、Roblox の @username を入力して Monitor。
+
+任意: .ROBLOSECURITY を保存すると、Cookie が必要な応答が取れる場合があります。
+
+注意: GitHub Pages 上の通常の JavaScript からは Roblox へ fetch できません（CORS）。
+拡張機能だと host_permissions で直接アクセスできます。

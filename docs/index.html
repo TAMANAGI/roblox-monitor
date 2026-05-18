@@ -275,7 +275,10 @@
         <strong>B. GitHub Pages の見たまま使う</strong><br />
         ngrok / Cloudflare Tunnel などでローカル 5000 を<strong> https の公開 URL </strong>
         に公開し、その URL を API に保存する。<br /><br />
-        <strong>C. 開発者向け</strong> Chromium で混合コンテンツを無効にする方法はセキュリティ上おすすめしません。
+        <strong>C. 開発者向け</strong> Chromium で混合コンテンツを無効にする方法はセキュリティ上おすすめしません。<br /><br />
+        <strong>D. Chrome 拡張（サーバーなし・ブラウザだけ）</strong><br />
+        GitHub Pages は Roblox が <strong>CORS</strong> でブロックするため、この Web ページだけでは Roblox に直接 fetch できません。<br />
+        リポジトリの <code>browser-extension/</code> を「パッケージ化されていない拡張機能」として読み込むと、<strong>ツールバーのポップアップだけ</strong>で Presence を確認できます（<code>browser-extension/install.txt</code>）。
       </div>
 
       <div class="settings-row">
@@ -345,14 +348,33 @@
 
     <script>
       const DEFAULT_API_BASE = "https://roblox-monitor-owse.onrender.com";
+      const LOCAL_UI_DEFAULT_API = "http://127.0.0.1:5000";
       const TOKEN_KEY = "robloxRoblosecurity";
       const API_URL_KEY = "robloxApiBaseUrl";
       const MIN_BOOT_MS = 6000;
 
+      function isLocalUiHost() {
+        const h = window.location.hostname;
+        return (
+          h === "127.0.0.1" ||
+          h === "localhost" ||
+          h === "[::1]"
+        );
+      }
+
       function getApiBase() {
         const raw = (localStorage.getItem(API_URL_KEY) || "").trim();
         const base = raw.replace(/\/$/, "");
-        return base || DEFAULT_API_BASE;
+
+        if (base) {
+          return base;
+        }
+
+        if (isLocalUiHost()) {
+          return LOCAL_UI_DEFAULT_API;
+        }
+
+        return DEFAULT_API_BASE;
       }
 
       function updateApiUrlStatus() {
@@ -362,16 +384,28 @@
           return;
         }
         const cur = getApiBase();
-        inp.placeholder = DEFAULT_API_BASE;
+        inp.placeholder = isLocalUiHost()
+          ? LOCAL_UI_DEFAULT_API
+          : DEFAULT_API_BASE;
         const saved = (localStorage.getItem(API_URL_KEY) || "").trim();
+
         if (!saved) {
-          st.innerText = "API: デフォルト（Render）";
+          if (isLocalUiHost()) {
+            st.innerText =
+              "API: 自動（"
+              + LOCAL_UI_DEFAULT_API
+              + "）— Flask をその URL で起動してください";
+          } else {
+            st.innerText = "API: デフォルト（Render）";
+          }
         } else {
           st.innerText = "API: " + cur;
         }
       }
 
       function saveApiUrl() {
+        const raw = document.getElementById("apiUrlInput").value.trim();
+
         if (!raw) {
           alert("API のベース URL を入力してください（例: http://127.0.0.1:5000）");
           return;
@@ -472,46 +506,69 @@
         return res.ok;
       }
 
-      async function waitForServer() {
-        while (true) {
+      async function waitForHealthDeadline(maxMs) {
+        const end = Date.now() + maxMs;
+
+        while (Date.now() < end) {
           try {
             if (await pingHealth()) {
               return true;
             }
-          } catch {
-            /* retry */
+          } catch (_) {
+            /* ignore */
           }
           await sleep(2000);
         }
+
+        return false;
       }
 
       async function playBootAnimation() {
+
         for (const step of BOOT_SEQUENCE) {
+
           await sleep(step.wait);
+
           if (step.ascii) {
             appendBootAscii();
           } else {
             appendBootLine(step.text);
           }
+
         }
 
-        while (true) {
-          try {
-            if (await pingHealth()) {
-              break;
-            }
-          } catch {
-            /* retry */
-          }
-          appendBootLine("WAITING FOR RENDER INSTANCE ...");
-          await sleep(2000);
+        const ok = await waitForHealthDeadline(75000);
+
+        if (!ok) {
+
+          appendBootLine(
+            "TIMEOUT — API の /health に繋がりません。",
+
+          );
+
+          appendBootLine("期待する URL: " + getApiBase());
+
+          appendBootLine(
+            "例: flask --app bot.main run --host 127.0.0.1 --port 5000",
+
+          );
+
+          appendBootLine("起動後にこのページをリロードしてください。");
+
+          await sleep(2500);
+
+        } else {
+
+          appendBootLine("API ONLINE ...");
+
+          await sleep(500);
+
         }
 
-        appendBootLine("API ONLINE ...");
-        await sleep(500);
       }
 
       async function showMainApp() {
+
         const bootScreen = document.getElementById("bootScreen");
         const appMain = document.getElementById("appMain");
 
@@ -531,11 +588,10 @@
       }
 
       async function runBootSequence() {
+
         const started = Date.now();
-        const serverReady = waitForServer();
 
         await playBootAnimation();
-        await serverReady;
 
         const elapsed = Date.now() - started;
         if (elapsed < MIN_BOOT_MS) {
