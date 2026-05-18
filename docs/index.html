@@ -70,6 +70,10 @@
         color: #4ade80;
       }
 
+      .token-status.warn {
+        color: #fbbf24;
+      }
+
       input {
         padding: 14px;
         width: 300px;
@@ -170,10 +174,64 @@
         margin-bottom: 10px;
         font-family: monospace;
       }
+
+      .hidden {
+        display: none !important;
+      }
+
+      .boot-screen {
+        position: fixed;
+        inset: 0;
+        z-index: 1000;
+        background: #0d0d0d;
+        padding: 48px;
+        overflow: auto;
+        font-family: ui-monospace, "SF Mono", Menlo, monospace;
+        transition: opacity 0.45s ease;
+      }
+
+      .boot-screen.fade-out {
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      .boot-brand {
+        font-family: sans-serif;
+        font-size: 15px;
+        font-weight: 600;
+        color: #f5f5f5;
+        margin-bottom: 36px;
+        letter-spacing: 0.02em;
+      }
+
+      .boot-log {
+        font-size: 13px;
+        line-height: 1.75;
+        color: #d4d4d4;
+      }
+
+      .boot-line {
+        white-space: pre-wrap;
+      }
+
+      .boot-ascii {
+        margin: 12px 0 20px;
+        color: #f0f0f0;
+        white-space: pre;
+        font-size: 11px;
+        line-height: 1.15;
+      }
     </style>
   </head>
 
   <body>
+    <div id="bootScreen" class="boot-screen">
+      <div class="boot-brand">roblox-monitor</div>
+
+      <div id="bootLog" class="boot-log"></div>
+    </div>
+
+    <div id="appMain" class="app-main hidden">
     <div class="title">Roblox Presence Monitor</div>
 
     <div class="settings">
@@ -248,32 +306,207 @@
 
     <div id="logs"></div>
 
+    </div>
+
     <script>
       const API_BASE = "https://roblox-monitor-owse.onrender.com";
       const TOKEN_KEY = "robloxRoblosecurity";
+      const MIN_BOOT_MS = 6000;
+
+      const ROBLOX_ASCII = [
+        "┌──────────────────────────────────────┐",
+        "│  ██╗    ██╗███████╗██╗      ██████╗ │",
+        "│  ██║    ██║██╔════╝██║     ██╔═══██╗│",
+        "│  ██║ █╗ ██║█████╗  ██║     ██║   ██║│",
+        "│  ██║███╗██║██╔══╝  ██║     ██║   ██║│",
+        "│  ╚███╔███╔╝███████╗███████╗╚██████╔╝│",
+        "│   ╚══╝╚══╝ ╚══════╝╚══════╝ ╚═════╝ │",
+        "│         WELCOME TO ROBLOX            │",
+        "└──────────────────────────────────────┘",
+      ].join("\n");
+
+      const BOOT_SEQUENCE = [
+        { wait: 300, text: "INCOMING HTTP REQUEST DETECTED ..." },
+        { wait: 900, text: "SERVICE WAKING UP ..." },
+        { wait: 700, ascii: true },
+        { wait: 800, text: "ALLOCATING COMPUTE RESOURCES ..." },
+        { wait: 700, text: "PREPARING INSTANCE FOR INITIALIZATION ..." },
+        { wait: 700, text: "STARTING THE INSTANCE ..." },
+        { wait: 600, text: "ENVIRONMENT VARIABLES INJECTED ..." },
+        { wait: 600, text: "FINALIZING STARTUP ..." },
+        { wait: 600, text: "OPTIMIZING DEPLOYMENT ..." },
+        { wait: 500, text: "STEADY HANDS. CLEAN LOGS. YOUR APP IS ALMOST LIVE ..." },
+      ];
 
       let currentUsername = "";
+      let pollTimer = null;
       const logs = [];
 
-      function getToken() {
-        return localStorage.getItem(TOKEN_KEY) || "";
+      function sleep(ms) {
+        return new Promise((resolve) => setTimeout(resolve, ms));
       }
 
-      function updateTokenStatus() {
-        const el = document.getElementById("tokenStatus");
-        const token = getToken();
+      function bootTime() {
+        const d = new Date();
+        return [d.getHours(), d.getMinutes(), d.getSeconds()]
+          .map((n) => String(n).padStart(2, "0"))
+          .join(":");
+      }
 
-        if (token) {
-          el.innerText = "Token: saved (" + token.length + " chars)";
-          el.className = "token-status ok";
-        } else {
-          el.innerText = "Token: not set";
-          el.className = "token-status";
+      function appendBootLine(text) {
+        const bootLog = document.getElementById("bootLog");
+        const line = document.createElement("div");
+        line.className = "boot-line";
+        line.textContent = bootTime() + "  " + text;
+        bootLog.appendChild(line);
+        bootLog.scrollTop = bootLog.scrollHeight;
+      }
+
+      function appendBootAscii() {
+        const bootLog = document.getElementById("bootLog");
+        const block = document.createElement("pre");
+        block.className = "boot-ascii";
+        block.textContent = ROBLOX_ASCII;
+        bootLog.appendChild(block);
+        bootLog.scrollTop = bootLog.scrollHeight;
+      }
+
+      async function pingHealth() {
+        const res = await fetch(API_BASE + "/health?t=" + Date.now(), {
+          headers: apiHeaders(),
+        });
+        return res.ok;
+      }
+
+      async function waitForServer() {
+        while (true) {
+          try {
+            if (await pingHealth()) {
+              return true;
+            }
+          } catch {
+            /* retry */
+          }
+          await sleep(2000);
         }
       }
 
-      function saveToken() {
-        const value = document.getElementById("tokenInput").value.trim();
+      async function playBootAnimation() {
+        for (const step of BOOT_SEQUENCE) {
+          await sleep(step.wait);
+          if (step.ascii) {
+            appendBootAscii();
+          } else {
+            appendBootLine(step.text);
+          }
+        }
+
+        while (true) {
+          try {
+            if (await pingHealth()) {
+              break;
+            }
+          } catch {
+            /* retry */
+          }
+          appendBootLine("WAITING FOR RENDER INSTANCE ...");
+          await sleep(2000);
+        }
+
+        appendBootLine("API ONLINE ...");
+        await sleep(500);
+      }
+
+      async function showMainApp() {
+        const bootScreen = document.getElementById("bootScreen");
+        const appMain = document.getElementById("appMain");
+
+        bootScreen.classList.add("fade-out");
+        appMain.classList.remove("hidden");
+
+        setTimeout(() => {
+          bootScreen.classList.add("hidden");
+        }, 500);
+
+        await updateTokenStatus();
+        pollTimer = setInterval(loadStatus, 5000);
+      }
+
+      async function runBootSequence() {
+        const started = Date.now();
+        const serverReady = waitForServer();
+
+        await playBootAnimation();
+        await serverReady;
+
+        const elapsed = Date.now() - started;
+        if (elapsed < MIN_BOOT_MS) {
+          await sleep(MIN_BOOT_MS - elapsed);
+        }
+
+        showMainApp();
+      }
+
+      function normalizeToken(raw) {
+        let value = raw.trim();
+
+        if (value.toLowerCase().startsWith(".roblosecurity=")) {
+          value = value.split("=", 1)[1].trim();
+        }
+
+        if (
+          value.length >= 2 &&
+          value[0] === value[value.length - 1] &&
+          (value[0] === '"' || value[0] === "'")
+        ) {
+          value = value.slice(1, -1).trim();
+        }
+
+        return value;
+      }
+
+      function getToken() {
+        return normalizeToken(localStorage.getItem(TOKEN_KEY) || "");
+      }
+
+      async function updateTokenStatus() {
+        const el = document.getElementById("tokenStatus");
+        const token = getToken();
+
+        if (!token) {
+          el.innerText = "Token: not set";
+          el.className = "token-status";
+          return;
+        }
+
+        el.innerText = "Token: checking...";
+        el.className = "token-status";
+
+        try {
+          const res = await fetch(API_BASE + "/auth/verify", {
+            headers: { "X-Roblox-Security": token },
+          });
+          const data = await res.json();
+
+          if (data.valid) {
+            el.innerText =
+              "Token: valid (user " + data.userId + ", " + token.length + " chars)";
+            el.className = "token-status ok";
+          } else {
+            el.innerText =
+              "Token: invalid or expired — copy a fresh cookie from Roblox";
+            el.className = "token-status warn";
+          }
+        } catch {
+          el.innerText = "Token: saved (" + token.length + " chars, not verified)";
+          el.className = "token-status ok";
+        }
+      }
+
+      async function saveToken() {
+        const value = normalizeToken(
+          document.getElementById("tokenInput").value,
+        );
 
         if (!value) {
           alert("Paste your .ROBLOSECURITY cookie value first.");
@@ -282,7 +515,7 @@
 
         localStorage.setItem(TOKEN_KEY, value);
         document.getElementById("tokenInput").value = "";
-        updateTokenStatus();
+        await updateTokenStatus();
       }
 
       function clearToken() {
@@ -343,7 +576,7 @@
             data.status || "UNKNOWN";
 
           document.getElementById("game").innerText =
-            data.presenceError || data.game || "";
+            data.presenceNote || data.presenceError || data.game || "";
 
           document.getElementById("userId").innerText = data.userId;
           document.getElementById("friends").innerText = data.friends;
@@ -355,7 +588,7 @@
             "] " +
             data.status +
             " " +
-            (data.presenceError || data.game || "");
+            (data.presenceNote || data.presenceError || data.game || "");
 
           if (logs.length === 0 || logs[logs.length - 1] !== latestLog) {
             logs.push(latestLog);
@@ -395,8 +628,7 @@
         loadStatus();
       }
 
-      updateTokenStatus();
-      setInterval(loadStatus, 5000);
+      runBootSequence();
     </script>
   </body>
 </html>

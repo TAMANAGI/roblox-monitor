@@ -33,17 +33,60 @@ ROBLOX_HEADERS = {
 }
 
 
+def normalize_roblosecurity(raw):
+
+    if not raw:
+        return ""
+
+    value = raw.strip()
+
+    if value.lower().startswith(".roblosecurity="):
+        value = value.split("=", 1)[1].strip()
+
+    if (
+        len(value) >= 2 and
+        value[0] == value[-1] and
+        value[0] in ("'", '"')
+    ):
+        value = value[1:-1].strip()
+
+    return value
+
+
 def get_request_roblosecurity():
 
-    from_header = request.headers.get(
-        "X-Roblox-Security",
-        "",
-    ).strip()
+    from_header = normalize_roblosecurity(
+        request.headers.get("X-Roblox-Security", ""),
+    )
 
     if from_header:
         return from_header
 
-    return ROBLOSECURITY
+    return normalize_roblosecurity(ROBLOSECURITY)
+
+
+def verify_roblosecurity(roblosecurity):
+
+    session = roblox_session(roblosecurity)
+
+    try:
+
+        r = session.get(
+            "https://users.roblox.com/v1/users/authenticated",
+            verify=False,
+            timeout=15,
+        )
+
+        if r.status_code != 200:
+            return False, None
+
+        data = r.json()
+
+        return True, data.get("id")
+
+    except Exception:
+
+        return False, None
 
 
 def roblox_session(roblosecurity=""):
@@ -66,6 +109,19 @@ def get_csrf_token(session):
     r = session.post(
         "https://auth.roblox.com/v2/logout",
         verify=False,
+        timeout=15,
+    )
+
+    token = r.headers.get("x-csrf-token", "")
+
+    if token:
+        return token
+
+    r = session.post(
+        "https://presence.roblox.com/v1/presence/users",
+        json={"userIds": [1]},
+        verify=False,
+        timeout=15,
     )
 
     return r.headers.get("x-csrf-token", "")
@@ -127,13 +183,24 @@ def get_presence(user_id, roblosecurity=""):
             if token:
                 headers["X-CSRF-TOKEN"] = token
 
-        r = session.post(
-            url,
-            json=payload,
-            headers=headers,
-            verify=False,
-            timeout=15,
-        )
+        for _ in range(2):
+
+            r = session.post(
+                url,
+                json=payload,
+                headers=headers,
+                verify=False,
+                timeout=15,
+            )
+
+            if (
+                r.status_code == 403 and
+                r.headers.get("x-csrf-token")
+            ):
+                headers["X-CSRF-TOKEN"] = r.headers["x-csrf-token"]
+                continue
+
+            break
 
         data = r.json()
 
@@ -260,6 +327,42 @@ def get_followers_count(user_id):
 # API
 # =========================
 
+@app.route("/health")
+def health():
+
+    return jsonify({
+        "ok": True,
+    })
+
+
+@app.route("/auth/verify")
+def auth_verify():
+
+    roblosecurity = get_request_roblosecurity()
+
+    if not roblosecurity:
+
+        return jsonify({
+            "valid": False,
+            "message": "no token",
+        })
+
+    valid, user_id = verify_roblosecurity(roblosecurity)
+
+    if not valid:
+
+        return jsonify({
+            "valid": False,
+            "message": "token invalid or expired",
+        })
+
+    return jsonify({
+        "valid": True,
+        "userId": user_id,
+        "message": "ok",
+    })
+
+
 @app.route("/status")
 def status():
 
@@ -282,12 +385,20 @@ def status():
             })
 
         roblosecurity = get_request_roblosecurity()
+        token_invalid = False
+
+        if roblosecurity:
+            valid, _ = verify_roblosecurity(roblosecurity)
+            if not valid:
+                token_invalid = True
+                roblosecurity = ""
 
         presence = get_presence(user_id, roblosecurity)
 
         status = "UNKNOWN"
         game = ""
         presence_error = ""
+        presence_note = ""
 
         if (
             "userPresences" in presence and
@@ -336,10 +447,13 @@ def status():
                     "(set .ROBLOSECURITY in Settings)"
                 )
             else:
-                presence_error = (
-                    "presence unavailable "
-                    "(token may be expired)"
-                )
+                presence_error = "presence unavailable"
+
+        if token_invalid:
+            presence_note = (
+                "Saved token is invalid or expired — "
+                "copy a fresh .ROBLOSECURITY from Roblox"
+            )
 
         info = get_user_info(user_id)
 
@@ -386,6 +500,9 @@ def status():
 
         if presence_error:
             response["presenceError"] = presence_error
+
+        if presence_note:
+            response["presenceNote"] = presence_note
 
         return jsonify(response)
 
