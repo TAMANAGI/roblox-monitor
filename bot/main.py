@@ -10,7 +10,12 @@ urllib3.disable_warnings()
 
 app = Flask(__name__)
 
-CORS(app)
+CORS(
+    app,
+    resources={r"/*": {"origins": "*"}},
+    allow_headers=["Content-Type", "X-Roblox-Security"],
+    expose_headers=["Content-Type"],
+)
 
 # =========================
 
@@ -28,15 +33,28 @@ ROBLOX_HEADERS = {
 }
 
 
-def roblox_session():
+def get_request_roblosecurity():
+
+    from_header = request.headers.get(
+        "X-Roblox-Security",
+        "",
+    ).strip()
+
+    if from_header:
+        return from_header
+
+    return ROBLOSECURITY
+
+
+def roblox_session(roblosecurity=""):
 
     session = requests.Session()
     session.headers.update(ROBLOX_HEADERS)
 
-    if ROBLOSECURITY:
+    if roblosecurity:
         session.cookies.set(
             ".ROBLOSECURITY",
-            ROBLOSECURITY,
+            roblosecurity,
             domain=".roblox.com",
         )
 
@@ -91,7 +109,7 @@ def get_user_id(username):
 # PRESENCE
 # =========================
 
-def get_presence(user_id):
+def get_presence(user_id, roblosecurity=""):
 
     try:
 
@@ -101,10 +119,10 @@ def get_presence(user_id):
             "userIds": [user_id]
         }
 
-        session = roblox_session()
+        session = roblox_session(roblosecurity)
         headers = {"Content-Type": "application/json"}
 
-        if ROBLOSECURITY:
+        if roblosecurity:
             token = get_csrf_token(session)
             if token:
                 headers["X-CSRF-TOKEN"] = token
@@ -263,7 +281,9 @@ def status():
                 "error": "user not found"
             })
 
-        presence = get_presence(user_id)
+        roblosecurity = get_request_roblosecurity()
+
+        presence = get_presence(user_id, roblosecurity)
 
         status = "UNKNOWN"
         game = ""
@@ -310,13 +330,16 @@ def status():
 
         else:
 
-            if not ROBLOSECURITY:
+            if not roblosecurity:
                 presence_error = (
                     "presence unavailable "
-                    "(set ROBLOSECURITY on Render)"
+                    "(set .ROBLOSECURITY in Settings)"
                 )
             else:
-                presence_error = "presence unavailable"
+                presence_error = (
+                    "presence unavailable "
+                    "(token may be expired)"
+                )
 
         info = get_user_info(user_id)
 
