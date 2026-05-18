@@ -645,9 +645,8 @@
       const TOKEN_KEY = "robloxRoblosecurity";
       const WATCH_USERNAME_KEY = "robloxWatchUsername";
       const MIN_BOOT_MS = 6000;
-      // Presence Open Cloud: 429 → exponential backoff from 1s (undocumented per-endpoint limits elsewhere).
-      // https://create.roblox.com/docs/cloud/reference/domains/presence
-      const POLL_INTERVAL_MS = 30000;
+      // Poller hits /status which aggregates Roblox calls — shorter interval raises 429 risk.
+      const POLL_INTERVAL_MS = 10000;
 
       const ROBLOX_ASCII = [
         "┌──────────────────────────────────────┐",
