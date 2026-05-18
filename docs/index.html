@@ -679,7 +679,7 @@
       const WATCH_USERNAME_KEY = "robloxWatchUsername";
       const MIN_BOOT_MS = 6000;
       // Poller hits /status which aggregates Roblox calls — shorter interval raises 429 risk.
-      const POLL_INTERVAL_MS = 10000;
+      const POLL_INTERVAL_MS = 20000;
 
       const ROBLOX_ASCII = [
         "┌──────────────────────────────────────┐",
@@ -737,12 +737,14 @@
         }
 
         if (Notification.permission === "granted") {
-          el.innerText = "通知: 許可済み（IN GAME に入ったとき / ゲーム切替で通知）";
+          el.innerText =
+            "通知: 許可済み（IN GAME に入ったとき / ゲーム切替で通知）";
         } else if (Notification.permission === "denied") {
           el.innerText =
             "通知: ブラウザからブロックされています。設定から許可してください。";
         } else {
-          el.innerText = "未許可 — ボタンで許可すると通知できます（HTTPS ページのみ）。";
+          el.innerText =
+            "未許可 — ボタンで許可すると通知できます（HTTPS ページのみ）。";
         }
       }
 
@@ -758,130 +760,95 @@
         }
 
         try {
-
           const p = await Notification.requestPermission();
 
           if (el) {
-
             if (p === "granted") {
-
               el.innerText =
                 "通知: オン — 監視ユーザーが IN GAME になったときに通知します。";
 
               try {
-
                 new Notification("roblox-monitor", {
                   body: "通知のテストです。IN GAME でまたお知らせします。",
                 });
-
               } catch (_) {}
-
             } else if (p === "denied") {
-
               el.innerText =
                 "通知が拒否されました。ブラウザのサイト設定から許可してください。";
-
             } else {
-
               el.innerText = "許可ダイアログがキャンセルされました。";
-
             }
-
           }
-
         } catch (err) {
-
           console.error(err);
 
           if (el) {
-
             el.innerText = "通知の許可リクエストに失敗しました。";
-
           }
-
         }
 
         syncNotifyStatusLabel();
-
       }
 
       function pickNotifyGameLine(data) {
-
         if ((data.status || "") !== "IN GAME") {
-
           return "";
-
         }
 
         const g = (data.game || "").trim();
 
         if (g) {
-
           return g;
-
         }
 
         const u = (data.universeName || "").trim();
 
         if (u) {
-
           return u;
-
         }
 
         return "ゲームに入室（タイトル未取得）";
-
       }
 
       function notifyIfEnteredInGame(data) {
-
         const status = data.status || "";
         const gameLine = pickNotifyGameLine(data);
 
-        if (!("Notification" in window)) {
-
-          lastNotifySnapshot = { status: status, gameLine: gameLine };
-
-          return;
-
-        }
-
-        if (Notification.permission === "granted" && status === "IN GAME") {
-
-          const prev = lastNotifySnapshot;
-
-          const entered = prev.status !== "IN GAME";
-
-          const switched =
-            prev.status === "IN GAME" &&
-            gameLine &&
-            prev.gameLine &&
-            gameLine !== prev.gameLine;
-
-          if (entered || switched) {
-
-            try {
-
-              const name =
-                data.displayName ||
-                data.username ||
-                getWatchUsername() ||
-                "ユーザー";
-
-              new Notification(name + " が IN GAME", {
-                body: gameLine,
-                tag: "roblox-monitor-ingame",
-                renotify: switched,
-              });
-
-            } catch (_) {}
-
+        try {
+          if (!("Notification" in window)) {
+            return;
           }
 
+          if (Notification.permission === "granted" && status === "IN GAME") {
+            const prev = lastNotifySnapshot;
+
+            const entered = prev.status !== "IN GAME";
+
+            const switched =
+              prev.status === "IN GAME" &&
+              gameLine &&
+              prev.gameLine &&
+              gameLine !== prev.gameLine;
+
+            if (entered || switched) {
+              try {
+                const name =
+                  data.displayName ||
+                  data.username ||
+                  getWatchUsername() ||
+                  "ユーザー";
+
+                new Notification(name + " が IN GAME", {
+                  body: gameLine,
+                  tag: "roblox-monitor-ingame",
+                  renotify: switched,
+                });
+              } catch (_) {}
+            }
+          }
+        } finally {
+          lastNotifySnapshot = { status: status, gameLine: gameLine };
         }
-
-        lastNotifySnapshot = { status: status, gameLine: gameLine };
-
       }
 
       function sleep(ms) {
@@ -1131,6 +1098,8 @@
       /** 古い fetch が遅れて DOM を上書きしないよう、直近の読み込みだけ反映する */
       let statusFetchGeneration = 0;
 
+      let statusAbortController = null;
+
       function showPendingProfile(forUsername) {
         const avatarEl = document.getElementById("avatar");
         avatarEl.removeAttribute("src");
@@ -1158,6 +1127,15 @@
           return;
         }
 
+        if (statusAbortController) {
+          try {
+            statusAbortController.abort();
+          } catch (_) {}
+        }
+
+        statusAbortController = new AbortController();
+        const signal = statusAbortController.signal;
+
         const gen = ++statusFetchGeneration;
 
         setMonitorHint(
@@ -1174,7 +1152,13 @@
 
           const res = await fetch(url, {
             headers: apiHeaders(),
+            signal,
           });
+
+          // レート制限: 画面は現状維持（取得中のまま／直近の表示を維持）
+          if (res.status === 429) {
+            return;
+          }
 
           const data = await res.json();
 
@@ -1248,9 +1232,15 @@
               logsDiv.appendChild(el);
             });
 
-          notifyIfEnteredInGame(data);
+          try {
+            notifyIfEnteredInGame(data);
+          } catch (_) {}
         } catch (err) {
           console.error(err);
+
+          if (err && err.name === "AbortError") {
+            return;
+          }
 
           if (gen !== statusFetchGeneration) {
             return;
