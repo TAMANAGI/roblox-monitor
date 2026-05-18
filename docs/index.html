@@ -51,9 +51,62 @@
         line-height: 1.15;
       }
 
-      .search,
-      .settings {
+      .credentials-drawer {
         margin-bottom: 40px;
+        border-radius: 16px;
+        border: 1px solid #333;
+        background: #141414;
+        overflow: hidden;
+      }
+
+      .credentials-drawer-summary {
+        list-style: none;
+        padding: 16px 18px;
+        cursor: pointer;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        justify-content: center;
+        min-height: 52px;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
+        font-family: inherit;
+        color: inherit;
+      }
+
+      .credentials-drawer-summary::-webkit-details-marker {
+        display: none;
+      }
+
+      .credentials-drawer-summary::marker {
+        content: "";
+      }
+
+      .credentials-drawer-title {
+        font-weight: 700;
+        font-size: 1.05rem;
+      }
+
+      .credentials-drawer-sub {
+        font-size: 13px;
+        color: #888;
+        line-height: 1.35;
+      }
+
+      .credentials-drawer[open] > .credentials-drawer-summary {
+        border-bottom: 1px solid #2a2a2a;
+      }
+
+      .credentials-drawer-body {
+        padding: 14px 14px 18px;
+      }
+
+      .credentials-drawer-body .settings {
+        margin-bottom: 22px;
+      }
+
+      .credentials-drawer-body .search {
+        margin-bottom: 0;
       }
 
       .search-row {
@@ -358,9 +411,21 @@
       }
 
       @media (max-width: 768px) {
-        .search,
-        .settings {
+        .credentials-drawer {
           margin-bottom: 28px;
+        }
+
+        .credentials-drawer-summary {
+          padding: 15px 14px;
+          min-height: 52px;
+        }
+
+        .credentials-drawer-body {
+          padding: 12px 10px 16px;
+        }
+
+        .credentials-drawer-body .settings {
+          margin-bottom: 18px;
         }
 
         .settings {
@@ -463,6 +528,17 @@
     <div id="appMain" class="app-main hidden">
     <div class="title">Roblox Presence Monitor</div>
 
+    <details class="credentials-drawer">
+      <summary class="credentials-drawer-summary">
+        <span class="credentials-drawer-title">
+          トークン・監視ユーザー名の入力
+        </span>
+        <span class="credentials-drawer-sub">
+          タップして開く（閉じておくとのぞき見対策になります）
+        </span>
+      </summary>
+
+      <div class="credentials-drawer-body">
     <div class="settings">
       <div class="settings-title">設定</div>
 
@@ -515,9 +591,12 @@
           再読み込み
         </button>
       </div>
-
-      <div id="monitorHint" class="monitor-hint" aria-live="polite"></div>
     </div>
+
+      </div>
+    </details>
+
+    <div id="monitorHint" class="monitor-hint" aria-live="polite"></div>
 
     <div class="profile">
       <img id="avatar" class="avatar" />
