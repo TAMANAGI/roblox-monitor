@@ -42,6 +42,14 @@
         margin-left: 0;
       }
 
+      .monitor-hint {
+        margin-top: 12px;
+        font-size: 14px;
+        color: #a3a3a3;
+        line-height: 1.5;
+        min-height: 1.5em;
+      }
+
       .settings {
         background: #1a1a1a;
         padding: 24px;
@@ -296,6 +304,8 @@
           再読み込み
         </button>
       </div>
+
+      <div id="monitorHint" class="monitor-hint" aria-live="polite"></div>
     </div>
 
     <div class="profile">
@@ -306,9 +316,11 @@
 
         <div id="username" class="username"></div>
 
-        <div id="status" class="status">OFFLINE</div>
+        <div id="status" class="status">—</div>
 
-        <div id="game" class="game"></div>
+        <div id="game" class="game">
+          ユーザー名を入力して Monitor を押すと /status で取得します。
+        </div>
       </div>
     </div>
 
@@ -316,19 +328,19 @@
       <div class="card">
         <div class="card-title">USER ID</div>
 
-        <div id="userId" class="card-value"></div>
+        <div id="userId" class="card-value">—</div>
       </div>
 
       <div class="card">
         <div class="card-title">FRIENDS</div>
 
-        <div id="friends" class="card-value"></div>
+        <div id="friends" class="card-value">—</div>
       </div>
 
       <div class="card">
         <div class="card-title">FOLLOWERS</div>
 
-        <div id="followers" class="card-value"></div>
+        <div id="followers" class="card-value">—</div>
       </div>
     </div>
 
@@ -371,6 +383,21 @@
 
       let pollTimer = null;
       const logs = [];
+
+      function setMonitorHint(text) {
+        const el = document.getElementById("monitorHint");
+        if (el) {
+          el.innerText = text || "";
+        }
+      }
+
+      function fmtStat(v) {
+        if (v == null || v === "") {
+          return "—";
+        }
+
+        return String(v);
+      }
 
       function sleep(ms) {
         return new Promise((resolve) => setTimeout(resolve, ms));
@@ -466,6 +493,11 @@
           document.getElementById("usernameInput").value = savedName;
         }
         pollTimer = setInterval(loadStatus, POLL_INTERVAL_MS);
+        if (getWatchUsername()) {
+          loadStatus();
+        } else {
+          setMonitorHint("監視するユーザー名を入れて Monitor を押してください。");
+        }
       }
 
       async function runBootSequence() {
@@ -619,11 +651,18 @@
         document.getElementById("username").innerText = "@" + forUsername;
 
         document.getElementById("status").innerText = "取得中…";
-        document.getElementById("game").innerText = "";
+        document.getElementById("game").innerText =
+          "API（/status）へ問い合わせています…";
 
         document.getElementById("userId").innerText = "—";
         document.getElementById("friends").innerText = "—";
         document.getElementById("followers").innerText = "—";
+
+        setMonitorHint(
+          "「@" +
+            forUsername +
+            "」について Render 上の API に取得中です。",
+        );
       }
 
       async function loadStatus() {
@@ -634,6 +673,10 @@
         }
 
         const gen = ++statusFetchGeneration;
+
+        setMonitorHint(
+          "/status を取得しています…（クエリ username=@" + uname + "）",
+        );
 
         try {
           const url =
@@ -656,6 +699,7 @@
           if (data.error) {
             document.getElementById("status").innerText = "ERROR";
             document.getElementById("game").innerText = data.error;
+            setMonitorHint("API がエラーを返しました（上の ERROR / 説明を確認）。");
             return;
           }
 
@@ -679,9 +723,18 @@
           document.getElementById("game").innerText =
             data.presenceNote || data.presenceError || data.game || "";
 
-          document.getElementById("userId").innerText = data.userId;
-          document.getElementById("friends").innerText = data.friends;
-          document.getElementById("followers").innerText = data.followers;
+          document.getElementById("userId").innerText =
+            fmtStat(data.userId);
+          document.getElementById("friends").innerText =
+            fmtStat(data.friends);
+          document.getElementById("followers").innerText =
+            fmtStat(data.followers);
+
+          setMonitorHint(
+            "取得できました（サーバー時刻 " +
+              (data.updated || "—") +
+              "）。下のプレゼンスは Roblox API の応答に基づきます。",
+          );
 
           const latestLog =
             "[" +
@@ -717,6 +770,7 @@
           document.getElementById("status").innerText = "NETWORK";
           document.getElementById("game").innerText =
             "API に接続できません。";
+          setMonitorHint("fetch に失敗しました。Network タブか API の稼働を確認してください。");
         }
       }
 
