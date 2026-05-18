@@ -1,4 +1,4 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 
 import requests
@@ -12,19 +12,9 @@ app = Flask(__name__)
 CORS(app)
 
 # =========================
-# 設定
-# =========================
-
-USERNAME = "Lawyes4"
 
 BROOKHAVEN_PLACE_ID = 4924922222
 
-# =========================
-
-logs = []
-
-# =========================
-# USER_ID取得
 # =========================
 
 def get_user_id(username):
@@ -46,20 +36,14 @@ def get_user_id(username):
 
     return data["data"][0]["id"]
 
-USER_ID = get_user_id(USERNAME)
-
-print("USER_ID =", USER_ID)
-
-# =========================
-# Presence取得
 # =========================
 
-def get_presence():
+def get_presence(user_id):
 
     url = "https://presence.roblox.com/v1/presence/users"
 
     payload = {
-        "userIds": [USER_ID]
+        "userIds": [user_id]
     }
 
     r = requests.post(
@@ -71,17 +55,83 @@ def get_presence():
     return r.json()
 
 # =========================
-# API
+
+def get_user_info(user_id):
+
+    url = f"https://users.roblox.com/v1/users/{user_id}"
+
+    r = requests.get(
+        url,
+        verify=False
+    )
+
+    return r.json()
+
+# =========================
+
+def get_avatar(user_id):
+
+    url = (
+        "https://thumbnails.roblox.com/v1/users/avatar-headshot"
+        f"?userIds={user_id}"
+        "&size=420x420"
+        "&format=Png"
+        "&isCircular=false"
+    )
+
+    r = requests.get(
+        url,
+        verify=False
+    )
+
+    data = r.json()
+
+    return data["data"][0]["imageUrl"]
+
+# =========================
+
+def get_friends_count(user_id):
+
+    url = f"https://friends.roblox.com/v1/users/{user_id}/friends/count"
+
+    r = requests.get(
+        url,
+        verify=False
+    )
+
+    return r.json()["count"]
+
+# =========================
+
+def get_followers_count(user_id):
+
+    url = f"https://friends.roblox.com/v1/users/{user_id}/followers/count"
+
+    r = requests.get(
+        url,
+        verify=False
+    )
+
+    return r.json()["count"]
+
 # =========================
 
 @app.route("/status")
 def status():
 
-    global logs
+    username = request.args.get("username")
 
-    data = get_presence()
+    if not username:
 
-    user = data["userPresences"][0]
+        return jsonify({
+            "error": "username required"
+        })
+
+    user_id = get_user_id(username)
+
+    presence = get_presence(user_id)
+
+    user = presence["userPresences"][0]
 
     state = user["userPresenceType"]
 
@@ -110,20 +160,32 @@ def status():
 
         status = "IN STUDIO"
 
-    log = {
-        "status": status,
-        "game": game,
-        "updated": time.strftime("%Y-%m-%d %H:%M:%S")
-    }
+    info = get_user_info(user_id)
 
-    logs.append(log)
+    avatar = get_avatar(user_id)
 
-    logs = logs[-30:]
+    friends = get_friends_count(user_id)
+
+    followers = get_followers_count(user_id)
 
     return jsonify({
-        "username": USERNAME,
+
+        "username": info["name"],
+        "displayName": info["displayName"],
+        "userId": user_id,
+
+        "avatar": avatar,
+
         "status": status,
         "game": game,
-        "updated": time.strftime("%Y-%m-%d %H:%M:%S"),
-        "logs": logs
+
+        "friends": friends,
+        "followers": followers,
+
+        "created": info["created"],
+
+        "updated": time.strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
+
     })

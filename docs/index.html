@@ -2,41 +2,121 @@
 <html>
   <head>
     <meta charset="UTF-8" />
-    <title>Roblox Monitor</title>
+    <title>Roblox Presence Monitor</title>
 
     <style>
       body {
-        background: #111;
+        background: #0f0f0f;
         color: white;
         font-family: sans-serif;
         padding: 40px;
+        max-width: 900px;
+        margin: auto;
       }
 
       .title {
+        font-size: 48px;
+        margin-bottom: 40px;
+        font-weight: bold;
+      }
+
+      .search {
+        margin-bottom: 40px;
+      }
+
+      input {
+        padding: 14px;
+        width: 300px;
+        border: none;
+        border-radius: 12px;
+        font-size: 18px;
+        background: #1f1f1f;
+        color: white;
+      }
+
+      button {
+        padding: 14px 20px;
+        border: none;
+        border-radius: 12px;
+        font-size: 18px;
+        background: #2563eb;
+        color: white;
+        cursor: pointer;
+        margin-left: 10px;
+      }
+
+      .profile {
+        display: flex;
+        gap: 30px;
+        align-items: center;
+        margin-bottom: 40px;
+      }
+
+      .avatar {
+        width: 140px;
+        height: 140px;
+        border-radius: 20px;
+        object-fit: cover;
+        background: #1f1f1f;
+      }
+
+      .display-name {
         font-size: 40px;
-        margin-bottom: 30px;
+        font-weight: bold;
+      }
+
+      .username {
+        color: #888;
+        font-size: 22px;
+        margin-top: 5px;
       }
 
       .status {
         font-size: 60px;
         font-weight: bold;
-        margin-bottom: 10px;
+        margin-top: 20px;
       }
 
       .game {
-        font-size: 30px;
+        font-size: 28px;
+        margin-top: 10px;
+        color: #ccc;
+      }
+
+      .stats {
+        display: flex;
+        gap: 20px;
+        margin-top: 20px;
+        flex-wrap: wrap;
+      }
+
+      .card {
+        background: #1a1a1a;
+        padding: 20px;
+        border-radius: 16px;
+        min-width: 160px;
+      }
+
+      .card-title {
+        color: #888;
         margin-bottom: 10px;
       }
 
-      .updated {
-        color: #aaa;
-        margin-bottom: 40px;
+      .card-value {
+        font-size: 28px;
+        font-weight: bold;
+      }
+
+      .logs-title {
+        margin-top: 50px;
+        margin-bottom: 20px;
+        font-size: 32px;
       }
 
       .log {
-        background: #1d1d1d;
-        padding: 12px;
-        border-radius: 10px;
+        background: #1a1a1a;
+        padding: 14px;
+        border-radius: 12px;
         margin-bottom: 10px;
         font-family: monospace;
       }
@@ -46,44 +126,100 @@
   <body>
     <div class="title">Roblox Presence Monitor</div>
 
-    <div id="username"></div>
+    <div class="search">
+      <input id="usernameInput" placeholder="Roblox Username" />
 
-    <div class="status" id="status">Loading...</div>
+      <button onclick="startMonitor()">Monitor</button>
+    </div>
 
-    <div class="game" id="game"></div>
+    <div class="profile">
+      <img id="avatar" class="avatar" />
 
-    <div class="updated" id="updated"></div>
+      <div>
+        <div id="displayName" class="display-name"></div>
 
-    <h2>Logs</h2>
+        <div id="username" class="username"></div>
+
+        <div id="status" class="status">OFFLINE</div>
+
+        <div id="game" class="game"></div>
+      </div>
+    </div>
+
+    <div class="stats">
+      <div class="card">
+        <div class="card-title">USER ID</div>
+
+        <div id="userId" class="card-value"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">FRIENDS</div>
+
+        <div id="friends" class="card-value"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">FOLLOWERS</div>
+
+        <div id="followers" class="card-value"></div>
+      </div>
+    </div>
+
+    <div class="logs-title">Session Logs</div>
 
     <div id="logs"></div>
 
     <script>
+      let currentUsername = "";
+
+      const logs = [];
+
       async function loadStatus() {
+        if (!currentUsername) {
+          return;
+        }
+
         try {
           const res = await fetch(
-            "https://roblox-monitor-owse.onrender.com/status",
+            "https://roblox-monitor-owse.onrender.com/status?username=" +
+              currentUsername +
+              "&t=" +
+              Date.now(),
           );
 
           const data = await res.json();
 
           console.log(data);
 
-          document.getElementById("username").innerText =
-            "USERNAME: " + data.username;
+          document.getElementById("avatar").src = data.avatar;
+
+          document.getElementById("displayName").innerText = data.displayName;
+
+          document.getElementById("username").innerText = "@" + data.username;
 
           document.getElementById("status").innerText = data.status;
 
           document.getElementById("game").innerText = data.game || "";
 
-          document.getElementById("updated").innerText =
-            "Updated: " + data.updated;
+          document.getElementById("userId").innerText = data.userId;
+
+          document.getElementById("friends").innerText = data.friends;
+
+          document.getElementById("followers").innerText = data.followers;
+
+          const latestLog =
+            "[" + data.updated + "] " + data.status + " " + (data.game || "");
+
+          if (logs.length === 0 || logs[logs.length - 1] !== latestLog) {
+            logs.push(latestLog);
+          }
 
           const logsDiv = document.getElementById("logs");
 
           logsDiv.innerHTML = "";
 
-          data.logs
+          logs
             .slice()
             .reverse()
             .forEach((log) => {
@@ -91,19 +227,27 @@
 
               el.className = "log";
 
-              el.innerText =
-                "[" + log.updated + "] " + log.status + " " + (log.game || "");
+              el.innerText = log;
 
               logsDiv.appendChild(el);
             });
         } catch (err) {
           console.error(err);
 
-          document.getElementById("status").innerText = "API ERROR";
+          document.getElementById("status").innerText = "SERVER WAKING UP...";
+
+          document.getElementById("game").innerText =
+            "Render free server starting...";
         }
       }
 
-      loadStatus();
+      function startMonitor() {
+        currentUsername = document.getElementById("usernameInput").value;
+
+        logs.length = 0;
+
+        loadStatus();
+      }
 
       setInterval(loadStatus, 5000);
     </script>
