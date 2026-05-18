@@ -172,7 +172,28 @@ def get_user_id(username):
 # PRESENCE
 # =========================
 
-def get_presence(user_id, roblosecurity="", retries=3):
+
+def roblox_wait_after_rate_limit(response, attempt):
+    """429: prefer Retry-After (creator-docs rate-limits), else exp. backoff from 1s (Presence Open Cloud)."""
+
+    ra = response.headers.get("Retry-After") or response.headers.get("retry-after")
+
+    if ra is not None:
+
+        try:
+
+            sec = float(str(ra).strip())
+            time.sleep(max(0.5, min(sec, 120.0)))
+            return
+
+        except ValueError:
+
+            pass
+
+    time.sleep(min(60.0, 1.0 * (2 ** attempt)))
+
+
+def get_presence(user_id, roblosecurity="", retries=5):
 
     try:
 
@@ -219,7 +240,7 @@ def get_presence(user_id, roblosecurity="", retries=3):
                     break
 
                 if r.status_code == 429 and attempt + 1 < retries:
-                    time.sleep(backoff * (attempt + 1))
+                    roblox_wait_after_rate_limit(r, attempt)
                     continue
 
                 try:
@@ -235,7 +256,13 @@ def get_presence(user_id, roblosecurity="", retries=3):
 
                     if attempt + 1 < retries:
 
-                        time.sleep(backoff * (attempt + 1))
+                        if r.status_code == 429:
+
+                            roblox_wait_after_rate_limit(r, attempt)
+
+                        else:
+
+                            time.sleep(backoff * (attempt + 1))
 
                         continue
 
@@ -249,7 +276,13 @@ def get_presence(user_id, roblosecurity="", retries=3):
 
                     if attempt + 1 < retries:
 
-                        time.sleep(backoff * (attempt + 1))
+                        if r.status_code == 429:
+
+                            roblox_wait_after_rate_limit(r, attempt)
+
+                        else:
+
+                            time.sleep(backoff * (attempt + 1))
 
                         continue
 

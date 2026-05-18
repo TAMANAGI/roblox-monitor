@@ -316,6 +316,9 @@
       const TOKEN_KEY = "robloxRoblosecurity";
       const WATCH_USERNAME_KEY = "robloxWatchUsername";
       const MIN_BOOT_MS = 6000;
+      // Presence Open Cloud: 429 → exponential backoff from 1s (undocumented per-endpoint limits elsewhere).
+      // https://create.roblox.com/docs/cloud/reference/domains/presence
+      const POLL_INTERVAL_MS = 30000;
 
       const ROBLOX_ASCII = [
         "┌──────────────────────────────────────┐",
@@ -438,7 +441,7 @@
         if (savedName) {
           document.getElementById("usernameInput").value = savedName;
         }
-        pollTimer = setInterval(loadStatus, 5000);
+        pollTimer = setInterval(loadStatus, POLL_INTERVAL_MS);
       }
 
       async function runBootSequence() {
