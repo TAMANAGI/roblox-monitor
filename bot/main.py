@@ -135,6 +135,41 @@ def has_presence_data(presence):
         len(presence["userPresences"]) > 0
     )
 
+
+def presence_int_field(value):
+
+    if (
+        value is None or
+        value == ""
+    ):
+
+        return None
+
+    try:
+
+        return int(value)
+
+    except (TypeError, ValueError):
+
+        return None
+
+
+def presence_game_instance_field(value):
+    """Roblox Presence `gameId`: server JobId string (deeplink query gameInstanceId)."""
+
+    if value is None:
+
+        return None
+
+    text = (
+        str(
+            value,
+        ).strip()
+    )
+
+    return text if text else None
+
+
 # =========================
 # USER ID
 # =========================
@@ -702,6 +737,11 @@ def status():
         last_location = ""
         universe_name = ""
 
+        place_id_out = None
+        root_place_id_out = None
+        universe_id_out = None
+        game_instance_id_out = None
+
         if has_presence_data(presence):
 
             user = presence["userPresences"][0]
@@ -710,6 +750,19 @@ def status():
 
             place = user.get("placeId")
             univ = user.get("universeId")
+
+            place_id_out = presence_int_field(
+                place,
+            )
+            root_place_id_out = presence_int_field(
+                user.get("rootPlaceId"),
+            )
+            universe_id_out = presence_int_field(
+                univ,
+            )
+            game_instance_id_out = presence_game_instance_field(
+                user.get("gameId"),
+            )
 
             last_location = user.get(
                 "lastLocation",
@@ -888,6 +941,18 @@ def status():
                 time.strftime(
                     "%Y-%m-%d %H:%M:%S"
                 ),
+
+            "placeId":
+                place_id_out,
+
+            "rootPlaceId":
+                root_place_id_out,
+
+            "universeId":
+                universe_id_out,
+
+            "gameInstanceId":
+                game_instance_id_out,
         }
 
         if presence_error:

@@ -335,6 +335,86 @@
         overflow-wrap: anywhere;
       }
 
+      .join-section {
+        margin-top: 20px;
+        background: #141414;
+        border-radius: 14px;
+        padding: 16px 18px;
+        font-size: 14px;
+        line-height: 1.55;
+      }
+
+      .join-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px 14px;
+        align-items: baseline;
+        margin-bottom: 10px;
+      }
+
+      .join-row:last-of-type {
+        margin-bottom: 0;
+      }
+
+      .join-label {
+        color: #888;
+        flex: 0 0 auto;
+        min-width: 8.75rem;
+        font-size: 12px;
+        letter-spacing: 0.04em;
+      }
+
+      .join-value {
+        font-weight: 600;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+        flex: 1 1 12rem;
+        min-width: 0;
+      }
+
+      .join-value.mono {
+        font-family: ui-monospace, Menlo, monospace;
+        font-size: 12px;
+        font-weight: 500;
+      }
+
+      .join-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 14px;
+      }
+
+      .join-actions a {
+        display: inline-block;
+        padding: 10px 14px;
+        border-radius: 10px;
+        background: #2a65f7;
+        color: #fff;
+        font-weight: 600;
+        text-decoration: none;
+        font-size: 13px;
+        text-align: center;
+      }
+
+      .join-actions a.secondary {
+        background: #2d2d2d;
+        color: #f0f0f0;
+        border: 1px solid #444;
+      }
+
+      .join-actions a:focus-visible {
+        outline: 2px solid #6a9cff;
+        outline-offset: 2px;
+      }
+
+      .join-hint {
+        margin-top: 10px;
+        font-size: 12px;
+        color: #888;
+        line-height: 1.45;
+      }
+
       .logs-title {
         margin-top: 40px;
         margin-bottom: 16px;
@@ -668,6 +748,42 @@
         </div>
       </div>
 
+      <div class="join-section" aria-label="ゲームとサーバー">
+        <div class="join-row">
+          <span class="join-label">ゲーム ID (Universe)</span>
+          <span id="joinUniverseId" class="join-value">—</span>
+        </div>
+        <div class="join-row">
+          <span class="join-label">プレイス ID</span>
+          <span id="joinPlaceId" class="join-value">—</span>
+        </div>
+        <div class="join-row">
+          <span class="join-label">サーバー ID</span>
+          <span id="joinServerId" class="join-value mono">—</span>
+        </div>
+        <div class="join-actions">
+          <a
+            id="linkRobloxGame"
+            class="secondary"
+            hidden
+            rel="noopener noreferrer"
+            href="#"
+            >Roblox でゲームを開く</a
+          >
+          <a
+            id="linkJoinSameServer"
+            hidden
+            rel="noopener noreferrer"
+            href="#"
+            >同じサーバーに参加（起動）</a
+          >
+        </div>
+        <p class="join-hint">
+          「同じサーバー」は Presence のゲームインスタンス ID（サーバー ID）があるときだけ使えます。未ログイン応答では出ないことがあります（Cookie を API
+          に送っているときは取得しやすいです）。
+        </p>
+      </div>
+
       <div class="logs-title">Session Logs</div>
 
       <div id="logs"></div>
@@ -675,6 +791,7 @@
 
     <script>
       const API_BASE = "https://roblox-monitor-owse.onrender.com";
+      const ROBLOX_WEB = "https://www.roblox.com";
       const TOKEN_KEY = "robloxRoblosecurity";
       const WATCH_USERNAME_KEY = "robloxWatchUsername";
       const MIN_BOOT_MS = 6000;
@@ -711,6 +828,7 @@
 
       let pollTimer = null;
       const logs = [];
+      const MAX_SESSION_LOGS = 500;
 
       let lastNotifySnapshot = { status: "", gameLine: "" };
 
@@ -727,6 +845,101 @@
         }
 
         return String(v);
+      }
+
+      function hideJoinAnchor(el) {
+        el.hidden = true;
+        el.removeAttribute("href");
+      }
+
+      function showJoinAnchor(el, url) {
+        el.href = url;
+        el.target = "_blank";
+        el.rel = "noopener noreferrer";
+        el.hidden = false;
+      }
+
+      function resetJoinUi() {
+        document.getElementById("joinUniverseId").innerText = "—";
+        document.getElementById("joinPlaceId").innerText = "—";
+        document.getElementById("joinServerId").innerText = "—";
+        hideJoinAnchor(document.getElementById("linkRobloxGame"));
+        hideJoinAnchor(document.getElementById("linkJoinSameServer"));
+      }
+
+      function applyJoinFromStatus(data) {
+        document.getElementById("joinUniverseId").innerText = fmtStat(
+          data.universeId,
+        );
+        const placeEl = document.getElementById("joinPlaceId");
+        const pid = data.placeId;
+        const rid = data.rootPlaceId;
+        let placeShown = fmtStat(pid);
+        if (
+          placeShown !== "—" &&
+          rid != null &&
+          String(rid).trim() !== "" &&
+          String(rid) !== String(pid)
+        ) {
+          placeShown += "（root " + rid + "）";
+        }
+        if (placeShown === "—") {
+          placeShown = fmtStat(rid);
+        }
+        placeEl.innerText = placeShown;
+
+        const gid = data.gameInstanceId;
+        const sidEl = document.getElementById("joinServerId");
+        if (
+          gid !== undefined &&
+          gid !== null &&
+          String(gid).trim() !== ""
+        ) {
+          sidEl.innerText = String(gid).trim();
+        } else {
+          sidEl.innerText = "—";
+        }
+
+        const exploreId =
+          data.universeId ??
+          data.placeId ??
+          data.rootPlaceId;
+        const gameA = document.getElementById("linkRobloxGame");
+        if (exploreId != null && String(exploreId).trim() !== "") {
+          showJoinAnchor(
+            gameA,
+            ROBLOX_WEB + "/games/" + encodeURIComponent(String(exploreId)),
+          );
+        } else {
+          hideJoinAnchor(gameA);
+        }
+
+        const placeForJoin = data.placeId ?? data.rootPlaceId;
+        const job =
+          gid !== undefined &&
+          gid !== null &&
+          String(gid).trim() !== ""
+            ? String(gid).trim()
+            : "";
+
+        const joinA = document.getElementById("linkJoinSameServer");
+        if (
+          placeForJoin != null &&
+          String(placeForJoin).trim() !== "" &&
+          job
+        ) {
+          showJoinAnchor(
+            joinA,
+            ROBLOX_WEB +
+              "/games/start?" +
+              new URLSearchParams({
+                placeId: String(placeForJoin),
+                gameInstanceId: job,
+              }).toString(),
+          );
+        } else {
+          hideJoinAnchor(joinA);
+        }
       }
 
       function syncNotifyStatusLabel() {
@@ -1115,6 +1328,8 @@
         document.getElementById("friends").innerText = "—";
         document.getElementById("followers").innerText = "—";
 
+        resetJoinUi();
+
         setMonitorHint(
           "「@" + forUsername + "」について Render 上の API に取得中です。",
         );
@@ -1155,8 +1370,8 @@
             signal,
           });
 
-          // レート制限: 画面は現状維持（取得中のまま／直近の表示を維持）
-          if (res.status === 429) {
+          // 429 / 502 など一時障害は画面を現状維持（取得中のまま／直近の表示を維持）
+          if (res.status === 429 || res.status === 502) {
             return;
           }
 
@@ -1169,6 +1384,7 @@
           if (data.error) {
             document.getElementById("status").innerText = "ERROR";
             document.getElementById("game").innerText = data.error;
+            resetJoinUi();
             setMonitorHint(
               "API がエラーを返しました（上の ERROR / 説明を確認）。",
             );
@@ -1201,6 +1417,8 @@
             data.followers,
           );
 
+          applyJoinFromStatus(data);
+
           setMonitorHint(
             "取得できました（サーバー時刻 " +
               (data.updated || "—") +
@@ -1215,8 +1433,10 @@
             " " +
             (data.presenceNote || data.presenceError || data.game || "");
 
-          if (logs.length === 0 || logs[logs.length - 1] !== latestLog) {
-            logs.push(latestLog);
+          // /status が返るたびに 1 行ずつ蓄える（連続で同じ状態でもポーリング履歴として残す）
+          logs.push(latestLog);
+          while (logs.length > MAX_SESSION_LOGS) {
+            logs.shift();
           }
 
           const logsDiv = document.getElementById("logs");
@@ -1245,6 +1465,8 @@
           if (gen !== statusFetchGeneration) {
             return;
           }
+
+          resetJoinUi();
 
           document.getElementById("status").innerText = "NETWORK";
           document.getElementById("game").innerText = "API に接続できません。";
